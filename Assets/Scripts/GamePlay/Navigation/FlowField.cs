@@ -98,85 +98,80 @@ public sealed class FlowField
 
 
     private void BuildDirections()
+{
+    foreach (NavigationCell cell in grid.Cells)
     {
-        foreach (NavigationCell cell in grid.Cells)
+        if (!cell.IsWalkable)
+            continue;
+
+        if (cell.IntegrationCost == int.MaxValue)
+            continue;
+
+        if (cell.Position == TargetCell)
         {
-            if (!cell.IsWalkable)
-                continue;
-
-            if (cell.IntegrationCost ==
-                int.MaxValue)
-            {
-                continue;
-            }
-
-            if (cell.Position ==
-                TargetCell)
-            {
-                cell.Direction =
-                    Vector2.zero;
-
-                continue;
-            }
-
-
-            NavigationCell bestCell = null;
-
-            int bestCost =
-                cell.IntegrationCost;
-
-
-            for (int i = 0;
-                 i < grid.NeighborCount;
-                 i++)
-            {
-                if (!grid.TryGetWalkableNeighbor(
-                        cell.Position,
-                        i,
-                        out NavigationCell neighbor))
-                {
-                    continue;
-                }
-
-
-                if (neighbor.IntegrationCost >=
-                    bestCost)
-                {
-                    continue;
-                }
-
-
-                bestCost =
-                    neighbor.IntegrationCost;
-
-                bestCell =
-                    neighbor;
-            }
-
-
-            if (bestCell == null)
-            {
-                cell.Direction =
-                    Vector2.zero;
-
-                continue;
-            }
-
-
-            Vector2 currentWorld =
-                grid.CellToWorldCenter(
-                    cell.Position
-                );
-
-            Vector2 nextWorld =
-                grid.CellToWorldCenter(
-                    bestCell.Position
-                );
-
-
-            cell.Direction =
-                (nextWorld - currentWorld)
-                .normalized;
+            cell.Direction = Vector2.zero;
+            continue;
         }
+
+        int bestCost = int.MaxValue;
+
+        for (int i = 0; i < grid.NeighborCount; i++)
+        {
+            if (!grid.TryGetWalkableNeighbor(
+                    cell.Position,
+                    i,
+                    out NavigationCell neighbor))
+            {
+                continue;
+            }
+
+            if (neighbor.IntegrationCost < bestCost)
+            {
+                bestCost = neighbor.IntegrationCost;
+            }
+        }
+
+        if (bestCost >= cell.IntegrationCost)
+        {
+            cell.Direction = Vector2.zero;
+            continue;
+        }
+
+        Vector2 currentWorld =
+            grid.CellToWorldCenter(cell.Position);
+
+        Vector2 directionSum =
+            Vector2.zero;
+
+        for (int i = 0; i < grid.NeighborCount; i++)
+        {
+            if (!grid.TryGetWalkableNeighbor(
+                    cell.Position,
+                    i,
+                    out NavigationCell neighbor))
+            {
+                continue;
+            }
+
+            if (neighbor.IntegrationCost != bestCost)
+                continue;
+
+            Vector2 neighborWorld =
+                grid.CellToWorldCenter(
+                    neighbor.Position
+                );
+
+            Vector2 direction =
+                (neighborWorld - currentWorld)
+                .normalized;
+
+            directionSum += direction;
+        }
+
+        cell.Direction =
+            directionSum.sqrMagnitude > 0f
+                ? directionSum.normalized
+                : Vector2.zero;
     }
+}
 }

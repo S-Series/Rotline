@@ -78,12 +78,23 @@ public sealed class HopMovementDefinition
             if (waitTimer > 0f)
                 return;
 
-            if (context.Target == null)
+            if (context.Target == null ||
+                context.Navigation == null)
+            {
                 return;
+            }
 
             hopDirection =
-                ((Vector2)context.Target.position -
-                 context.Motor.Position).normalized;
+                context.Navigation.GetDirection(
+                    context.Motor.Position
+                );
+/*
+            if (hopDirection.sqrMagnitude <= 0f)
+            {
+                waitTimer = hopInterval;
+                return;
+            }
+*/
 
             hopTimer = hopDuration;
             isHopping = true;
