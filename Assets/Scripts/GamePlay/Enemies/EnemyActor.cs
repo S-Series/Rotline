@@ -17,8 +17,9 @@ public sealed class EnemyActor : MonoBehaviour
     }
 
     public void Initialize(
-        EnemyDefinition definition,
-        Transform target)
+    EnemyDefinition definition,
+    Transform target,
+    NavigationService navigation)
     {
         this.definition = definition;
 
@@ -47,13 +48,13 @@ public sealed class EnemyActor : MonoBehaviour
                 transform,
                 target,
                 movementMotor,
+                navigation,
                 definition.MoveSpeed
             );
 
         movementRuntime =
             definition.Movement.CreateRuntime(context);
     }
-
     private void Update()
     {
         movementRuntime?.Tick(Time.deltaTime);

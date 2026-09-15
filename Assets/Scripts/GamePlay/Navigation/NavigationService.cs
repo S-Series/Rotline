@@ -135,6 +135,8 @@ public sealed class NavigationService : MonoBehaviour
             );
 
 
+        // Player와 같은 Cell에 들어온 경우
+        // 실제 Player 위치를 향하게 한다.
         if (flowField.HasTarget &&
             currentCell ==
             flowField.TargetCell)

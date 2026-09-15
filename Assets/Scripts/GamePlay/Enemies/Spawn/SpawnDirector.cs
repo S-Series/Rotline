@@ -1,5 +1,6 @@
 using UnityEngine;
 
+[RequireComponent(typeof(NavigationService))]
 public sealed class SpawnDirector : MonoBehaviour
 {
     [Header("References")]
@@ -21,17 +22,23 @@ public sealed class SpawnDirector : MonoBehaviour
 
 
     private EnemyPool enemyPool;
+    private NavigationService navigation;
 
     private float spawnTimer;
 
 
     private void Awake()
     {
-        enemyPool = new EnemyPool(
-            enemyDefinition,
-            transform
-        );
+        navigation =
+            GetComponent<NavigationService>();
+
+        enemyPool =
+            new EnemyPool(
+                enemyDefinition,
+                transform
+            );
     }
+
 
     private void Update()
     {
@@ -44,6 +51,7 @@ public sealed class SpawnDirector : MonoBehaviour
 
         spawnTimer = spawnInterval;
     }
+
 
     private void SpawnEnemy()
     {
@@ -62,7 +70,8 @@ public sealed class SpawnDirector : MonoBehaviour
 
         enemy.Initialize(
             enemyDefinition,
-            player
+            player,
+            navigation
         );
     }
 }
