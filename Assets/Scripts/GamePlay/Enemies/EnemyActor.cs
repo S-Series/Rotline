@@ -3,7 +3,6 @@ using UnityEngine;
 [RequireComponent(typeof(EnemyMovementMotor))]
 public sealed class EnemyActor : MonoBehaviour
 {
-    [SerializeField]
     private EnemyDefinition definition;
 
     private EnemyMovementMotor movementMotor;
@@ -17,12 +16,16 @@ public sealed class EnemyActor : MonoBehaviour
             GetComponent<EnemyMovementMotor>();
     }
 
-    public void Initialize(Transform target)
+    public void Initialize(
+        EnemyDefinition definition,
+        Transform target)
     {
+        this.definition = definition;
+
         if (definition == null)
         {
             Debug.LogError(
-                $"{name}: EnemyDefinition이 설정되지 않았습니다.",
+                $"{name}: EnemyDefinition이 없습니다.",
                 this
             );
 
@@ -32,7 +35,7 @@ public sealed class EnemyActor : MonoBehaviour
         if (definition.Movement == null)
         {
             Debug.LogError(
-                $"{name}: MovementDefinition이 설정되지 않았습니다.",
+                $"{name}: MovementDefinition이 없습니다.",
                 this
             );
 
@@ -61,5 +64,13 @@ public sealed class EnemyActor : MonoBehaviour
         movementRuntime?.FixedTick(
             Time.fixedDeltaTime
         );
+    }
+
+    public void ResetActor()
+    {
+        movementRuntime = null;
+        definition = null;
+
+        movementMotor.Stop();
     }
 }

@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: EnemySlime
   m_EditorClassIdentifier: Assembly-CSharp::EnemyDefinition
   enemyId: slime
+  prefab: {fileID: 6192831605750368043, guid: 9e8650a17fe74734aa51a6f3f06b7d7e, type: 3}
   maxHealth: 10
-  moveSpeed: 2
+  moveSpeed: 4
   contactDamage: 1
   movement: {fileID: 11400000, guid: c2cd684220e2a884e9cb861852c96592, type: 2}
