@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d322809014dc0848a22d18c1c4bb3c9, type: 3}
+  m_Name: EnemySlime
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyDefinition
+  enemyId: slime
+  maxHealth: 10
+  moveSpeed: 2
+  contactDamage: 1
+  movement: {fileID: 11400000, guid: c2cd684220e2a884e9cb861852c96592, type: 2}
