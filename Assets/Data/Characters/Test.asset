@@ -16,10 +16,23 @@ MonoBehaviour:
   displayName: Test123
   baseStats:
     maxHealth: 100
+    healthRegen: 0
+    damageReduction: 0
+    maxResource: 0
+    resourceRegen: 0
     moveSpeed: 7.5
     acceleration: 25
     deceleration: 15
     attackPower: 10
     attackSpeed: 2
+    attackRange: 0
+    projectileSpeedMultiplier: 1
+    knockbackPower: 0
+    criticalChance: 0
+    criticalDamage: 0
     purificationPower: 1
     purificationRange: 5
+    purificationEfficiency: 0
+    experienceGainRate: 1
+    pickupRange: 0
+    luck: 0
