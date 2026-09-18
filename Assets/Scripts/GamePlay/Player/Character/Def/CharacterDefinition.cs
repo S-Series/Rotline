@@ -17,9 +17,17 @@ public sealed class CharacterDefinition : ScriptableObject
     [SerializeField]
     private CharacterStats baseStats;
 
+    [Header("Ability")]
+    [SerializeField]
+    private CharacterAbilityDefinition abilityDefinition;
+
 
     public string CharacterId => characterId;
     public string DisplayName => displayName;
 
     public CharacterStats BaseStats => baseStats;
+
+    // 능력이 없는 캐릭터라면 null일 수 있다.
+    public CharacterAbilityDefinition AbilityDefinition =>
+        abilityDefinition;
 }

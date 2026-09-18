@@ -256,7 +256,7 @@ public sealed class PlayerStats : MonoBehaviour
     }
 
     //! Debugging Test Codes ==========================
-
+/*
     [ContextMenu("Test Move Speed Modifiers")]
     private void TestMoveSpeedModifiers()
     {
@@ -655,5 +655,6 @@ public sealed class PlayerStats : MonoBehaviour
             Destroy(testObject);
         }
     }
+*/
 
 }

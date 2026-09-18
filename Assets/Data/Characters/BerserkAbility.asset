@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 189ee157c6d8a274ca91d4fb8e2e4d60, type: 3}
+  m_Name: BerserkAbility
+  m_EditorClassIdentifier: Assembly-CSharp::BerserkAbilityDefinition
+  abilityId: 
+  displayName: 
+  cooldown: 10
+  activationThresholdRatio: 0.1
+  toggleCooldownSeconds: 1
+  drainPerSecond: 5
+  restorePerSecond: 2
+  moveSpeedPercent: 0
+  attackSpeedPercent: 0
+  attackRangePercent: 0
+  projectileSpeedPercent: 0
+  damageReductionBonus: 0
+  slowResistanceBonus: 0
+  lifeStealFraction: 0.05

@@ -7,7 +7,6 @@ public abstract class CharacterAbilityRuntime : IDisposable
     protected PlayerStats Stats { get; }
 
     public bool IsActive { get; private set; }
-
     public bool IsDisposed { get; private set; }
 
 
@@ -18,9 +17,26 @@ public abstract class CharacterAbilityRuntime : IDisposable
         Definition = definition
             ?? throw new ArgumentNullException(nameof(definition));
 
-        Stats = stats != null
+        Stats = stats
             ? stats
             : throw new ArgumentNullException(nameof(stats));
+    }
+
+
+    // 플레이어가 능력 버튼을 눌렀을 때 호출하는 공용 진입점.
+    // 능력마다 사용 조건과 동작이 다르므로 하위 클래스에서 재정의한다.
+    public virtual bool RequestAbility()
+    {
+        return false;
+    }
+
+
+    // 활성/비활성 여부와 관계없이 매 프레임 호출하는 공용 진입점.
+    // 일반 능력은 기존 Tick()을 사용한다.
+    // 버서커처럼 비활성 상태에도 회복이 필요한 능력은 재정의한다.
+    public virtual void UpdateAbility(float deltaTime)
+    {
+        Tick(deltaTime);
     }
 
 
@@ -71,19 +87,13 @@ public abstract class CharacterAbilityRuntime : IDisposable
     }
 
 
-    // 각 능력에서 반드시 구현할 함수
-
     protected abstract void OnActivate();
 
     protected abstract void OnDeactivate();
 
-
-    // 필요한 능력만 Override
-
     protected virtual void OnTick(float deltaTime)
     {
     }
-
 
     protected virtual void OnDispose()
     {
