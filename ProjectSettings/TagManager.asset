@@ -41,6 +41,12 @@ TagManager:
   - name: Default
     uniqueID: 0
     locked: 0
+  - name: Game Field
+    uniqueID: 3370694109
+    locked: 0
+  - name: Play Field
+    uniqueID: 308786505
+    locked: 0
   - name: Front UI
     uniqueID: 1792721001
     locked: 0

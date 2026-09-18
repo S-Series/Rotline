@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3f2fd8b3e1f0cd047b05af344cfbff61, type: 3}
+  m_Name: Attack_Sword_Default.
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponAttackDefinition
+  hitboxPrefab: {fileID: 7788008896534694606, guid: 22e2afc8169856246809d4f2e7c5a027, type: 3}
+  motion: {fileID: 11400000, guid: addc1f7e25d10864ebd49834f4c01233, type: 2}
+  baseRange: 3
+  windupRatio: 0
+  activeRatio: 0.2
