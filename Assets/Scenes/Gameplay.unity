@@ -242,7 +242,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SpawnDirector
   player: {fileID: 1760795398}
   enemyDefinition: {fileID: 11400000, guid: 22d28bb1d94dda745a6d0e5169c00afb, type: 2}
-  corruptionField: {fileID: 0}
+  corruptionField: {fileID: 290573434}
   spawnInterval: 2
   spawnDistance: 12
 --- !u!4 &290573432
@@ -79742,7 +79742,6 @@ GameObject:
   - component: {fileID: 1134623653}
   - component: {fileID: 1134623656}
   - component: {fileID: 1134623655}
-  - component: {fileID: 1134623654}
   m_Layer: 8
   m_Name: Corruption Tilemap
   m_TagString: Untagged
@@ -79765,44 +79764,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 525749121}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!19719996 &1134623654
-TilemapCollider2D:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1134623652}
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Density: 1
-  m_Material: {fileID: 6200000, guid: f30acf2275ae04444996f51e3e9d4e0d, type: 2}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_ForceSendLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_ForceReceiveLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_ContactCaptureLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_CallbackLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_IsTrigger: 0
-  m_UsedByEffector: 0
-  m_CompositeOperation: 0
-  m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0}
-  m_MaximumTileChangeCount: 1000
-  m_ExtrusionFactor: 0
-  m_UseDelaunayMesh: 0
 --- !u!483693784 &1134623655
 TilemapRenderer:
   serializedVersion: 2
