@@ -373,4 +373,17 @@ public sealed class BerserkAbilityRuntime : CharacterAbilityRuntime
         if (float.IsNaN(value) || float.IsInfinity(value))
             throw new ArgumentOutOfRangeException(name);
     }
+
+    // 공용 능력 입력 → 버서커 On/Off
+    public override bool RequestAbility()
+    {
+        return RequestToggle();
+    }
+
+    // 공용 프레임 갱신 → 버서커 게이지 소모·회복
+    public override void UpdateAbility(float deltaTime)
+    {
+        Advance(deltaTime);
+    }
+    
 }

@@ -19,10 +19,10 @@ MonoBehaviour:
   toggleCooldownSeconds: 1
   drainPerSecond: 5
   restorePerSecond: 2
-  moveSpeedPercent: 0
-  attackSpeedPercent: 0
-  attackRangePercent: 0
-  projectileSpeedPercent: 0
-  damageReductionBonus: 0
-  slowResistanceBonus: 0
+  moveSpeedPercent: 30
+  attackSpeedPercent: 20
+  attackRangePercent: 20
+  projectileSpeedPercent: 25
+  damageReductionBonus: 0.2
+  slowResistanceBonus: 0.5
   lifeStealFraction: 0.05
