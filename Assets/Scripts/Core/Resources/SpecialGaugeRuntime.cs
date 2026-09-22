@@ -8,7 +8,7 @@ public sealed class SpecialGaugeRuntime
 
     public float Current { get; private set; }
 
-    public float Ratio => Current / Maximum;
+    public float Ratio => Maximum > 0f ? Current / Maximum : 0f;
 
 
     public SpecialGaugeRuntime(
@@ -86,11 +86,11 @@ public sealed class SpecialGaugeRuntime
     {
         if (float.IsNaN(value) ||
             float.IsInfinity(value) ||
-            value <= 0f)
+            value < 0f)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(value),
-                "Maximum must be finite and greater than zero."
+                "Maximum must be finite and non-negative."
             );
         }
     }

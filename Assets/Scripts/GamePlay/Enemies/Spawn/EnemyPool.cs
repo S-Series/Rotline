@@ -1,12 +1,13 @@
 using UnityEngine;
 using UnityEngine.Pool;
 
-public sealed class EnemyPool
+public sealed class EnemyPool : System.IDisposable
 {
     private readonly EnemyDefinition definition;
     private readonly Transform container;
 
     private readonly ObjectPool<EnemyActor> pool;
+    private readonly GameObject inactiveRoot;
 
     public EnemyPool(
         EnemyDefinition definition,
@@ -16,13 +17,16 @@ public sealed class EnemyPool
     {
         this.definition = definition;
         this.container = container;
+        inactiveRoot = new GameObject("Enemy Pool (Inactive)");
+        inactiveRoot.transform.SetParent(container, false);
+        inactiveRoot.SetActive(false);
 
         pool = new ObjectPool<EnemyActor>(
             CreateEnemy,
             OnGetEnemy,
             OnReleaseEnemy,
             OnDestroyEnemy,
-            collectionCheck: false,
+            collectionCheck: true,
             defaultCapacity: defaultCapacity,
             maxSize: maxSize
         );
@@ -43,28 +47,34 @@ public sealed class EnemyPool
         EnemyActor enemy =
             Object.Instantiate(
                 definition.Prefab,
-                container
+                inactiveRoot.transform
             );
 
         enemy.gameObject.SetActive(false);
+        enemy.transform.SetParent(container, false);
 
         return enemy;
     }
 
     private void OnGetEnemy(EnemyActor enemy)
     {
-        enemy.gameObject.SetActive(true);
+        // SpawnDirector activates only after position, subscriptions and data are ready.
     }
 
     private void OnReleaseEnemy(EnemyActor enemy)
     {
-        enemy.ResetActor();
-
         enemy.gameObject.SetActive(false);
+        enemy.ResetActor();
     }
 
     private void OnDestroyEnemy(EnemyActor enemy)
     {
         Object.Destroy(enemy.gameObject);
+    }
+
+    public void Dispose()
+    {
+        pool.Dispose();
+        Object.Destroy(inactiveRoot);
     }
 }

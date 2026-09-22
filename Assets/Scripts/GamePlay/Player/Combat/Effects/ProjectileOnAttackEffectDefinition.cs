@@ -67,7 +67,9 @@ public sealed class ProjectileOnAttackEffectDefinition
             speed,
             range,
             maxLifetime,
-            context.EnemyLayers
+            context.EnemyLayers,
+            context.Owner
         );
+        context.RegisterProjectile?.Invoke(projectile);
     }
 }

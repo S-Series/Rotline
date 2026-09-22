@@ -4,8 +4,10 @@ using UnityEngine;
     fileName = "AttackDefinition",
     menuName = "Game/Combat/Attack Definition"
 )]
-public sealed class WeaponAttackDefinition : ScriptableObject
+public class WeaponAttackDefinition : ScriptableObject
 {
+    [SerializeField] private AttackRecipe recipe = new();
+    public AttackRecipe BaseRecipe => recipe.Copy();
     [Header("Attack Components")]
     [SerializeField]
     private GameObject hitboxPrefab;
@@ -34,11 +36,17 @@ public sealed class WeaponAttackDefinition : ScriptableObject
         Mathf.Min(activeRatio, 1f - windupRatio);
 
 
-    public WeaponAttackRuntime CreateRuntime(
+    public virtual WeaponAttackRuntime CreateRuntime(
         PlayerStats stats,
         Transform owner,
-        LayerMask enemyLayers)
+        LayerMask enemyLayers,
+        AttackRecipe resolvedRecipe = null)
     {
+        AttackRecipe configuration = (resolvedRecipe ?? recipe).Copy();
+        configuration.Validate();
+        if (configuration.shape != null)
+            return new ModularWeaponAttackRuntime(this, stats, owner, enemyLayers, configuration);
+
         if (motion == null || hitboxPrefab == null)
         {
             Debug.LogError(
@@ -65,7 +73,8 @@ public sealed class WeaponAttackDefinition : ScriptableObject
             this,
             stats,
             owner,
-            enemyLayers
+            enemyLayers,
+            configuration
         );
     }
 }

@@ -176,4 +176,10 @@ public sealed class NavigationService : MonoBehaviour
 
         UpdateTarget();
     }
+
+    public bool IsWalkable(Vector2 position)
+    {
+        return navigationGrid != null &&
+            navigationGrid.TryGetCell(navigationGrid.WorldToCell(position), out var cell) && cell.IsWalkable;
+    }
 }

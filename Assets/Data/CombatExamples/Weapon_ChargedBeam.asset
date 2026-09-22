@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3f2fd8b3e1f0cd047b05af344cfbff61, type: 3}
+  m_Name: Weapon_ChargedBeam
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponAttackDefinition
+  recipe:
+    trigger: 2
+    shape: {fileID: 11400000, guid: dcbd95eafc721e3448a60be0194e0e33, type: 2}
+    trajectory: {fileID: 11400000, guid: 6254ec22ba6fba145bd3ae4a0795afb1, type: 2}
+    chargeSeconds: 1
+    minimumCharge: 0.1
+    lifetime: 0.5
+    speed: 8
+    radius: 0.2
+    thickness: 0.1
+    repeatHitSeconds: 0.1
+    pierceCount: 0
+    unlimitedTargets: 1
+    radiusScalesWithCharge: 0
+    projectileCount: 1
+    spreadDegrees: 0
+    damageMultiplier: 1
+  hitboxPrefab: {fileID: 0}
+  motion: {fileID: 0}
+  baseRange: 3
+  windupRatio: 0.2
+  activeRatio: 0.5

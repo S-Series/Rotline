@@ -20,6 +20,7 @@ public sealed class EnemyMovementMotor : MonoBehaviour
 
     public void Stop()
     {
+        if (rb == null) rb = GetComponent<Rigidbody2D>();
         rb.linearVelocity = Vector2.zero;
     }
 }

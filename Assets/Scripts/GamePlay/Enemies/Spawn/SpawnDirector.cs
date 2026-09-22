@@ -24,6 +24,8 @@ public sealed class SpawnDirector : MonoBehaviour
     private NavigationService navigation;
 
     private float spawnTimer;
+    private readonly System.Collections.Generic.HashSet<EnemyActor> activeEnemies = new();
+    public event System.Action<Vector2> EnemyKilled;
 
 
     private void Awake()
@@ -54,12 +56,17 @@ public sealed class SpawnDirector : MonoBehaviour
 
     private void SpawnEnemy()
     {
-        Vector2 direction =
-            Random.insideUnitCircle.normalized;
-
-        Vector2 spawnPosition =
-            (Vector2)player.position +
-            direction * spawnDistance;
+        if (player == null || enemyDefinition == null || enemyDefinition.Prefab == null ||
+            enemyDefinition.Movement == null) return;
+        Vector2 spawnPosition = default;
+        bool found = false;
+        for (int attempt = 0; attempt < 32; attempt++)
+        {
+            Vector2 direction = Random.insideUnitCircle.normalized;
+            spawnPosition = (Vector2)player.position + direction * spawnDistance;
+            if (navigation.IsWalkable(spawnPosition)) { found = true; break; }
+        }
+        if (!found) return;
 
         EnemyActor enemy =
             enemyPool.Get();
@@ -69,11 +76,17 @@ public sealed class SpawnDirector : MonoBehaviour
 
         enemy.Died += OnEnemyDied;
 
-        enemy.Initialize(
-            enemyDefinition,
-            player,
-            navigation
-        );
+        try
+        {
+            enemy.Initialize(enemyDefinition, player, navigation);
+        }
+        catch
+        {
+            enemyPool.Release(enemy);
+            throw;
+        }
+        activeEnemies.Add(enemy);
+        enemy.gameObject.SetActive(true);
     }
 
 
@@ -82,13 +95,15 @@ public sealed class SpawnDirector : MonoBehaviour
         Vector2 deathPosition)
     {
         enemy.Died -= OnEnemyDied;
+        activeEnemies.Remove(enemy);
 
         int added = 0;
 
-        if (corruptionField != null)
+        try
         {
-            added = corruptionField.Seed(deathPosition);
+            if (corruptionField != null) added = corruptionField.Seed(deathPosition);
         }
+        finally { enemyPool.Release(enemy); }
 
         Debug.Log(
             $"[Enemy] Died at {deathPosition}, " +
@@ -96,7 +111,16 @@ public sealed class SpawnDirector : MonoBehaviour
             this
         );
 
-        // 기존 풀링 시스템으로 반환.
-        enemyPool.Release(enemy);
+        EnemyKilled?.Invoke(deathPosition);
     }
+
+    private void OnDisable()
+    {
+        foreach (var enemy in activeEnemies)
+            if (enemy != null) enemyPool.Release(enemy);
+        activeEnemies.Clear();
+        spawnTimer = 0f;
+    }
+
+    private void OnDestroy() => enemyPool?.Dispose();
 }

@@ -7,12 +7,14 @@ public readonly struct AttackEffectContext
     public readonly LayerMask EnemyLayers;
 
     public readonly float ProjectileSpeedMultiplier;
+    public readonly System.Action<AttackProjectile> RegisterProjectile;
 
     public AttackEffectContext(
         AttackSnapshot attack,
         Transform owner,
         LayerMask enemyLayers,
-        float projectileSpeedMultiplier)
+        float projectileSpeedMultiplier,
+        System.Action<AttackProjectile> registerProjectile = null)
     {
         Attack = attack;
         Owner = owner;
@@ -20,6 +22,7 @@ public readonly struct AttackEffectContext
 
         ProjectileSpeedMultiplier =
             projectileSpeedMultiplier;
+        RegisterProjectile = registerProjectile;
     }
 }
 

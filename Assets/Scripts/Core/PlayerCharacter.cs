@@ -42,6 +42,7 @@ public sealed class PlayerCharacter : MonoBehaviour
         specialGauge = maxResource > 0f
             ? new SpecialGaugeRuntime(maxResource)
             : null;
+        stats.StatChanged += OnStatChanged;
 
         Debug.Log(
             $"[SpecialGauge] Character={name}, " +
@@ -89,10 +90,19 @@ public sealed class PlayerCharacter : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (stats != null) stats.StatChanged -= OnStatChanged;
         // 능력이 적용한 Modifier 등을 해제한다.
         abilityRuntime?.Dispose();
         abilityRuntime = null;
 
         specialGauge = null;
+    }
+
+    private void OnStatChanged(StatKey stat)
+    {
+        // Gauge ownership is a character capability; modifiers resize an existing gauge.
+        // Preserve the absolute amount, clamp on shrink, never grant free refill.
+        if (stat == StatKey.MaxResource && specialGauge != null)
+            specialGauge.SetMaximum(stats.MaxResource);
     }
 }

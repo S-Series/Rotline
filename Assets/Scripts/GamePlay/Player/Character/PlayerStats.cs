@@ -9,6 +9,7 @@ public sealed class PlayerStats : MonoBehaviour
         modifierHandles = new();
 
     private int nextModifierHandleId = 1;
+    public event Action<StatKey> StatChanged;
 
     // Survival
     public float MaxHealth => GetValue(StatKey.MaxHealth);
@@ -150,6 +151,7 @@ public sealed class PlayerStats : MonoBehaviour
         {
             stats.Add(entry.Key, entry.Value);
         }
+        foreach (var key in newStats.Keys) NotifyStatChanged(key);
     }
 
 
@@ -184,6 +186,7 @@ public sealed class PlayerStats : MonoBehaviour
             return false;
 
         modifierHandles.Remove(modifierId);
+        NotifyStatChanged(stat);
 
         return true;
     }
@@ -225,8 +228,20 @@ public sealed class PlayerStats : MonoBehaviour
             handleId,
             (stat, localId)
         );
+        NotifyStatChanged(stat);
 
         return handleId;
+    }
+
+    private void NotifyStatChanged(StatKey stat)
+    {
+        if (StatChanged == null) return;
+        // Notification failures must not hide an already registered modifier handle.
+        foreach (Action<StatKey> observer in StatChanged.GetInvocationList())
+        {
+            try { observer(stat); }
+            catch (Exception exception) { Debug.LogException(exception, this); }
+        }
     }
 
     private ModifierCollection GetCollection(StatKey stat)

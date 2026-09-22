@@ -14,6 +14,9 @@ public sealed class AppRoot : MonoSingleton<AppRoot>
 
         Input = GetComponent<InputReader>();
 
+        // Gameplay currently nests this object under a scene container.
+        // Persistence requires a root object; leave other scene objects in their scene.
+        transform.SetParent(null, true);
         DontDestroyOnLoad(gameObject);
     }
 }

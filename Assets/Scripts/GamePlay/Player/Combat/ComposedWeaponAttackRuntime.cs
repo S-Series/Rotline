@@ -3,53 +3,87 @@ using UnityEngine;
 public sealed class ComposedWeaponAttackRuntime
     : WeaponAttackRuntime
 {
+    // 현재 검의 회전 판정용 임시 샘플링 해상도.
+    // 추후 Motion별 충돌 검사 정책으로 분리할 예정.
+    private const int FullSweepSampleCount = 24;
+
     private readonly WeaponAttackDefinition settings;
+    private readonly AttackRecipe recipe;
 
     private readonly GameObject attackObject;
     private readonly AttackHitbox hitbox;
 
     private AttackSnapshot currentAttack;
+
     private float elapsed;
 
     private bool reverseNextAttack;
     private bool reverseCurrentAttack;
+
+    private bool activationNotified;
 
 
     public ComposedWeaponAttackRuntime(
         WeaponAttackDefinition definition,
         PlayerStats stats,
         Transform owner,
-        LayerMask enemyLayers)
+        LayerMask enemyLayers,
+        AttackRecipe recipe = null)
         : base(definition, stats, owner, enemyLayers)
     {
         settings = definition;
+        this.recipe = (recipe ?? new AttackRecipe()).Copy();
 
-        attackObject = Object.Instantiate(
-            definition.HitboxPrefab,
-            owner
-        );
+        try
+        {
+            attackObject = Object.Instantiate(
+                definition.HitboxPrefab,
+                owner
+            );
 
-        attackObject.name = "AttackInstance";
+            attackObject.name = "AttackInstance";
 
-        attackObject.transform.localPosition = Vector3.zero;
-        attackObject.transform.localRotation = Quaternion.identity;
-        attackObject.transform.localScale = Vector3.one;
+            attackObject.transform.localPosition = Vector3.zero;
+            attackObject.transform.localRotation =
+                Quaternion.identity;
+            attackObject.transform.localScale =
+                Vector3.one;
 
-        Collider2D collider =
-            attackObject.GetComponent<Collider2D>();
+            Collider2D collider =
+                attackObject.GetComponent<Collider2D>();
 
-        hitbox = attackObject.GetComponent<AttackHitbox>();
+            hitbox =
+                attackObject.GetComponent<AttackHitbox>();
 
-        hitbox.Initialize(collider, enemyLayers);
+            hitbox.Initialize(
+                collider,
+                enemyLayers
+            );
+        }
+        catch
+        {
+            Dispose();
+            throw;
+        }
+    }
+
+    public override void PrimaryHeld(Vector2 direction)
+    {
+        if (recipe.trigger == AttackTrigger.Automatic) RequestAttack(direction);
     }
 
 
     protected override void StartAttack(
         AttackSnapshot attack)
     {
-        currentAttack = attack;
-        elapsed = 0f;
+        currentAttack = new AttackSnapshot(attack.Direction, attack.Damage * recipe.damageMultiplier,
+            attack.Range, attack.Duration, attack.Charge, attack.ProjectileSpeedMultiplier);
 
+        elapsed = 0f;
+        activationNotified = false;
+
+        // 현재 공격의 방향을 확정한다.
+        // 다음 공격의 방향은 미리 반전해 둔다.
         if (settings.Motion.AlternateDirection)
         {
             reverseCurrentAttack = reverseNextAttack;
@@ -62,30 +96,32 @@ public sealed class ComposedWeaponAttackRuntime
 
         hitbox.End();
 
-        // 프리팹은 반지름 1을 기준으로 제작한다.
-        // 공격범위 Modifier가 반영된 최종 사거리로 확대.
+        // 프리팹은 반지름 1 기준.
+        // 최종 AttackRange를 반영한다.
         attackObject.transform.localScale =
             Vector3.one * attack.Range;
 
-        settings.Motion.ApplyPose(
-            attackObject.transform,
-            attack,
-            reverseCurrentAttack ? 1f : 0f
-        );
+        ApplyProgress(0f);
     }
 
 
-    protected override bool UpdateAttack(float deltaTime)
+    protected override bool UpdateAttack(
+        float deltaTime)
     {
-        elapsed += deltaTime;
-
         float duration = currentAttack.Duration;
 
-        if (elapsed >= duration)
+        if (duration <= 0f)
         {
             hitbox.End();
             return false;
         }
+
+        float previousElapsed = elapsed;
+
+        elapsed = Mathf.Min(
+            duration,
+            elapsed + Mathf.Max(0f, deltaTime)
+        );
 
         float windupEnd =
             duration * settings.WindupRatio;
@@ -96,63 +132,149 @@ public sealed class ComposedWeaponAttackRuntime
                 settings.ActiveRatio
             );
 
-        // 준비 구간: 판정 OFF
-        if (elapsed < windupEnd)
-        {
-            hitbox.End();
-            return true;
-        }
+        // 이번 프레임에 활성 구간 일부라도
+        // 통과했다면 판정을 실행한다.
+        bool crossesActiveWindow =
+            previousElapsed < activeEnd &&
+            elapsed >= windupEnd &&
+            elapsed > previousElapsed &&
+            activeEnd > windupEnd;
 
-        // 공격 활성 구간
-        if (elapsed < activeEnd)
+        if (crossesActiveWindow)
         {
-            float progress = Mathf.InverseLerp(
+            float fromTime = Mathf.Clamp(
+                previousElapsed,
+                windupEnd,
+                activeEnd
+            );
+
+            float toTime = Mathf.Clamp(
+                elapsed,
+                windupEnd,
+                activeEnd
+            );
+
+            float fromProgress = Mathf.InverseLerp(
                 windupEnd,
                 activeEnd,
-                elapsed
+                fromTime
             );
 
-            settings.Motion.ApplyPose(
-                attackObject.transform,
-                currentAttack,
-                reverseCurrentAttack
-                    ? 1f - progress
-                    : progress
+            float toProgress = Mathf.InverseLerp(
+                windupEnd,
+                activeEnd,
+                toTime
             );
 
-            if (!hitbox.IsActive)
+            bool newlyActivated = !activationNotified;
+
+            if (newlyActivated)
             {
-                hitbox.Begin(currentAttack.Damage);
+                // 공격 시작 자세를 먼저 적용한다.
+                ApplyProgress(fromProgress);
 
-                // 한 번의 휘두르기에서 딱 한 번 발생.
+                hitbox.Begin(new DamageContext(Owner, currentAttack.Damage, currentAttack.Direction));
+
+                activationNotified = true;
+
+                // 검기는 공격당 정확히 한 번 발사한다.
                 NotifyAttackActiveStarted(currentAttack);
+
+                // 유물 효과 실행 도중 공격이 취소되거나
+                // 소유자가 비활성화됐을 수 있다.
+                if (!IsAttacking || IsDisposed)
+                {
+                    return false;
+                }
             }
 
-            // 이동한 Collider를 현재 위치에서 검사.
-            hitbox.Scan();
+            // 활성 구간을 지나가는 비율만큼
+            // 회전 경로를 나눠 검사한다.
+            int steps = Mathf.Max(
+                1,
+                Mathf.CeilToInt(
+                    (toProgress - fromProgress) *
+                    FullSweepSampleCount
+                )
+            );
 
-            return true;
+            // 첫 활성화 시에는 시작 지점도 검사.
+            // 계속 진행 중이었다면 지난 프레임의
+            // 마지막 지점이 이미 검사됐으므로 생략.
+            int firstStep = newlyActivated ? 0 : 1;
+
+            for (int i = firstStep; i <= steps; i++)
+            {
+                if (!IsAttacking || IsDisposed)
+                {
+                    return false;
+                }
+
+                float interpolation =
+                    i / (float)steps;
+
+                float progress = Mathf.Lerp(
+                    fromProgress,
+                    toProgress,
+                    interpolation
+                );
+
+                ApplyProgress(progress);
+
+                hitbox.Scan();
+            }
         }
 
-        // 후딜레이: 판정 OFF
-        hitbox.End();
+        // 활성 구간을 통과한 프레임에서도
+        // 위의 경로 검사를 끝낸 뒤 Collider 종료.
+        if (elapsed >= activeEnd)
+        {
+            hitbox.End();
+        }
 
-        return true;
+        // 공격 전체 시간이 끝났는지 검사.
+        return elapsed < duration;
     }
 
 
     protected override void UpdatePhysics()
     {
-        // 현재 근접 공격은 UpdateAttack에서 판정을 검사한다.
-        // 향후 물리 기반 공격은 이 경계를 사용할 수 있다.
+        // 현재 근접 공격은 UpdateAttack에서
+        // 위치 갱신과 명중 판정을 수행한다.
+    }
+
+
+    protected override void CancelCurrentAttack()
+    {
+        activationNotified = false;
+
+        hitbox?.End();
     }
 
 
     protected override void ReleaseAttack()
     {
-        hitbox.End();
+        hitbox?.End();
 
         if (attackObject != null)
-            Object.Destroy(attackObject);
+        {
+            if (Application.isPlaying) Object.Destroy(attackObject);
+            else Object.DestroyImmediate(attackObject);
+        }
+    }
+
+
+    private void ApplyProgress(float progress)
+    {
+        // 역방향 공격에서는 진행도만 반전한다.
+        float motionProgress = reverseCurrentAttack
+            ? 1f - progress
+            : progress;
+
+        settings.Motion.ApplyPose(
+            attackObject.transform,
+            currentAttack,
+            motionProgress
+        );
     }
 }

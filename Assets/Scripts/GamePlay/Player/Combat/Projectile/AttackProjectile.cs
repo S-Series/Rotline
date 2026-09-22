@@ -18,6 +18,8 @@ public sealed class AttackProjectile : MonoBehaviour
     private float remainingLifetime;
 
     private bool launched;
+    private Transform owner;
+    private bool hasOwner;
 
 
     private void Awake()
@@ -34,8 +36,12 @@ public sealed class AttackProjectile : MonoBehaviour
         float projectileSpeed,
         float maxDistance,
         float maxLifetime,
-        LayerMask enemyLayers)
+        LayerMask enemyLayers,
+        Transform source = null)
     {
+        owner = source;
+        hasOwner = source != null;
+        if (hitCircle == null) hitCircle = GetComponent<CircleCollider2D>();
         direction = launchDirection.normalized;
 
         damage = Mathf.Max(0f, attackDamage);
@@ -73,13 +79,16 @@ public sealed class AttackProjectile : MonoBehaviour
     {
         if (!launched)
             return;
+        if (hasOwner && (owner == null || !owner.gameObject.activeInHierarchy))
+        {
+            Finish();
+            return;
+        }
 
         float dt = Time.deltaTime;
 
         if (dt <= 0f)
             return;
-
-        remainingLifetime -= dt;
 
         if (remainingLifetime <= 0f ||
             remainingDistance <= 0f)
@@ -87,6 +96,8 @@ public sealed class AttackProjectile : MonoBehaviour
             Finish();
             return;
         }
+        dt = Mathf.Min(dt, remainingLifetime);
+        remainingLifetime -= dt;
 
         float movementDistance = Mathf.Min(
             speed * dt,
@@ -94,6 +105,7 @@ public sealed class AttackProjectile : MonoBehaviour
         );
 
         Vector2 origin = transform.position;
+        Vector2 castOrigin = transform.TransformPoint(hitCircle.offset);
 
         // CircleCollider의 크기를 사용해
         // 이동 경로 전체에 대한 충돌을 검사한다.
@@ -107,7 +119,7 @@ public sealed class AttackProjectile : MonoBehaviour
         hits.Clear();
 
         Physics2D.CircleCast(
-            origin,
+            castOrigin,
             radius,
             direction,
             hitFilter,
@@ -136,7 +148,7 @@ public sealed class AttackProjectile : MonoBehaviour
             transform.position =
                 origin + direction * hit.distance;
 
-            enemy.TakeDamage(damage);
+            enemy.TakeDamage(new DamageContext(owner, damage, direction));
 
             Finish();
             return;
@@ -147,12 +159,12 @@ public sealed class AttackProjectile : MonoBehaviour
 
         remainingDistance -= movementDistance;
 
-        if (remainingDistance <= 0f)
+        if (remainingDistance <= 0f || remainingLifetime <= 0f)
             Finish();
     }
 
 
-    private void Finish()
+    public void Finish()
     {
         if (!launched)
             return;

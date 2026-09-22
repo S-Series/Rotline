@@ -18,6 +18,8 @@ public sealed class EnemyActor : MonoBehaviour
 
     // 사망한 적과 사망 위치를 전달한다.
     public event Action<EnemyActor, Vector2> Died;
+    public event Action<EnemyActor, DamageContext, DamageResult> Damaged;
+    public uint SpawnVersion { get; private set; }
 
 
     private void Awake()
@@ -33,6 +35,7 @@ public sealed class EnemyActor : MonoBehaviour
         NavigationService navigation)
     {
         this.definition = definition;
+        if (movementMotor == null) movementMotor = GetComponent<EnemyMovementMotor>();
 
         if (definition == null)
         {
@@ -55,6 +58,7 @@ public sealed class EnemyActor : MonoBehaviour
         // 풀에서 재사용할 때마다 체력과 사망 상태 초기화.
         currentHealth = Mathf.Max(0.01f, definition.MaxHealth);
         isDead = false;
+        SpawnVersion++;
 
         EnemyMovementContext context =
             new EnemyMovementContext(
@@ -90,31 +94,43 @@ public sealed class EnemyActor : MonoBehaviour
 
     public void TakeDamage(float damage)
     {
+        TakeDamage(new DamageContext(null, damage, Vector2.zero));
+    }
+
+    public DamageResult TakeDamage(DamageContext context)
+    {
+        float damage = context.Amount;
         if (isDead || definition == null)
-            return;
+            return default;
 
         if (float.IsNaN(damage) ||
             float.IsInfinity(damage) ||
             damage <= 0f)
         {
-            return;
+            return default;
         }
 
+        float applied = Mathf.Min(currentHealth, damage);
         currentHealth =
             Mathf.Max(0f, currentHealth - damage);
-
-        if (currentHealth <= 0f)
+        bool killed = currentHealth <= 0f;
+        var result = new DamageResult(applied, killed);
+        // Lock death before callbacks; a listener may deal damage recursively.
+        if (killed) isDead = true;
+        try
         {
-            Die();
+            Damaged?.Invoke(this, context, result);
         }
+        finally
+        {
+            if (killed) Die();
+        }
+        return result;
     }
 
 
     private void Die()
     {
-        if (isDead)
-            return;
-
         isDead = true;
 
         Vector2 deathPosition = transform.position;
@@ -136,8 +152,9 @@ public sealed class EnemyActor : MonoBehaviour
 
         // 이전 생명주기의 구독자가 다음 스폰에 남지 않도록 정리.
         Died = null;
+        Damaged = null;
 
-        movementMotor.Stop();
+        if (movementMotor != null) movementMotor.Stop();
     }
 
 

@@ -1,6 +1,7 @@
 using UnityEngine;
 
 [RequireComponent(typeof(PlayerActionController))]
+[RequireComponent(typeof(PlayerStats))]
 public sealed class PlayerPurificationController : MonoBehaviour
 {
     [Header("References")]
@@ -11,23 +12,19 @@ public sealed class PlayerPurificationController : MonoBehaviour
     private Camera gameplayCamera;
 
     [Header("Purification")]
-    [SerializeField, Min(0f)]
-    private float purificationRange = 3f;
-
-    [SerializeField, Min(0.01f)]
-    private float purificationInterval = 0.2f;
-
     [SerializeField, Min(0)]
     private int purificationRadiusCells = 0;
 
     private PlayerActionController actionController;
     private InputReader inputReader;
+    private PlayerStats stats;
 
     private float nextPurificationTime;
 
 
     private void Awake()
     {
+        stats = GetComponent<PlayerStats>();
         actionController =
             GetComponent<PlayerActionController>();
     }
@@ -53,7 +50,7 @@ public sealed class PlayerPurificationController : MonoBehaviour
 
     private void OnPrimary(PlayerMode mode)
     {
-        if (mode != PlayerMode.Purification)
+        if (!isActiveAndEnabled || mode != PlayerMode.Purification)
             return;
 
         if (corruptionField == null ||
@@ -65,6 +62,9 @@ public sealed class PlayerPurificationController : MonoBehaviour
 
         if (Time.time < nextPurificationTime)
             return;
+        float purificationRange = stats.PurificationRange;
+        float power = stats.PurificationPower;
+        if (power <= 0f || purificationRange <= 0f) return;
 
         Vector2 targetPosition =
             gameplayCamera.ScreenToWorldPoint(
@@ -81,13 +81,13 @@ public sealed class PlayerPurificationController : MonoBehaviour
             return;
         }
 
-        corruptionField.Purify(
+        int removed = corruptionField.Purify(
             targetPosition,
             purificationRadiusCells
         );
 
         nextPurificationTime =
-            Time.time + Mathf.Max(0.01f, purificationInterval);
+            Time.time + Mathf.Max(1, removed) / power;
     }
 
 

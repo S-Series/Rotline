@@ -3,13 +3,13 @@ using UnityEngine;
 
 public sealed class AttackHitbox : MonoBehaviour
 {
-    private readonly HashSet<EnemyActor> hitEnemies = new();
+    private readonly HashSet<(EnemyActor, uint)> hitEnemies = new();
     private readonly List<Collider2D> overlaps = new(32);
 
     private Collider2D hitCollider;
     private ContactFilter2D filter;
 
-    private float damage;
+    private DamageContext damage;
     private bool active;
 
     public bool IsActive => active;
@@ -30,6 +30,11 @@ public sealed class AttackHitbox : MonoBehaviour
 
 
     public void Begin(float attackDamage)
+    {
+        Begin(new DamageContext(null, attackDamage, Vector2.zero));
+    }
+
+    public void Begin(DamageContext attackDamage)
     {
         hitEnemies.Clear();
 
@@ -55,6 +60,7 @@ public sealed class AttackHitbox : MonoBehaviour
 
         foreach (Collider2D other in overlaps)
         {
+            if (!active) break;
             if (other == null || other == hitCollider)
                 continue;
 
@@ -69,7 +75,7 @@ public sealed class AttackHitbox : MonoBehaviour
             }
 
             // 같은 공격에서 한 적에게 1회만 피해.
-            if (!hitEnemies.Add(enemy))
+            if (!hitEnemies.Add((enemy, enemy.SpawnVersion)))
                 continue;
 
             enemy.TakeDamage(damage);
