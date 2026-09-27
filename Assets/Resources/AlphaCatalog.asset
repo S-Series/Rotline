@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7e050b897fd9db943b9d5237a51cc5d1, type: 3}
+  m_Name: AlphaCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::AlphaCatalog
+  characters:
+  - {fileID: 11400000, guid: 69e15336907212140b8462fa2a796b40, type: 2}
+  - {fileID: 11400000, guid: edda1d5e8a917d0498da1aa0884c133a, type: 2}
+  weapons:
+  - {fileID: 11400000, guid: 3b2916cd04fa98346b8cd65d29fdb6ea, type: 2}
+  - {fileID: 11400000, guid: c4e7703fb6863a047b3a3a1bbe479833, type: 2}
+  enemies:
+  - {fileID: 11400000, guid: bdb33f0dcc843c14f81e78f60d7169aa, type: 2}
+  - {fileID: 11400000, guid: 61224fd40a7878c44b72a74da4698de6, type: 2}
+  - {fileID: 11400000, guid: 8ac8bd71fa4169f40999a07d23a36004, type: 2}
+  boss: {fileID: 11400000, guid: 4ff76153bf35cbc42bd09f7ad193c16b, type: 2}
+  run: {fileID: 11400000, guid: 5662aea4f67c73647b10ec6f43d736e4, type: 2}

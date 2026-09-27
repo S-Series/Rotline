@@ -21,6 +21,7 @@ public sealed class PlayerCharacter : MonoBehaviour
 
     private void Awake()
     {
+        if (AlphaSession.Character != null) definition = AlphaSession.Character;
         stats = GetComponent<PlayerStats>();
 
         if (definition == null)
@@ -35,6 +36,13 @@ public sealed class PlayerCharacter : MonoBehaviour
 
         // 1. 캐릭터의 기본 스탯 초기화.
         stats.Initialize(definition.BaseStats);
+        if (AlphaSession.Active)
+        {
+            var profile = AlphaSession.Profile.Data;
+            stats.AddModifier(StatKey.MaxHealth, ModifierType.BaseFlat, profile.vitality * 10f);
+            stats.AddModifier(StatKey.AttackPower, ModifierType.BaseFlat, profile.power);
+            stats.AddModifier(StatKey.PickupRange, ModifierType.BaseFlat, profile.magnet * 0.3f);
+        }
 
         // 2. 캐릭터가 소유할 특수 게이지 생성.
         float maxResource = stats.MaxResource;

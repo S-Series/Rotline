@@ -9,11 +9,15 @@ public sealed class AttackBodyRuntime : IDisposable
     private readonly AttackSnapshot attack;
     private readonly Transform owner;
     private readonly Vector2 origin;
-    private readonly Quaternion rotation;
-    private readonly Vector2 direction;
+    private Quaternion rotation;
+    private Vector2 direction;
     private readonly List<Vector2> points = new();
     private readonly List<Collider2D> overlaps = new();
-    private readonly Dictionary<(EnemyActor, uint), float> nextHits = new();
+    private readonly HashSet<(EnemyActor, uint)> hitTargets = new();
+    private readonly AttackHitPolicyRuntime hitPolicy;
+    private readonly AttackTrajectoryRuntime trajectory;
+    private readonly Func<EnemyActor, DamageResult> applyDamage;
+    private readonly bool channel;
     private readonly ContactFilter2D filter;
     private readonly GameObject visual;
     private readonly LineRenderer line;
@@ -24,19 +28,39 @@ public sealed class AttackBodyRuntime : IDisposable
     private bool disposed;
     private bool scanned;
     private int targetsHit;
+    public float Age => age;
+    public Vector2 Position => visual != null ? (Vector2)visual.transform.position : origin;
+    public bool ExpiredNaturally { get; private set; }
+    public bool IsChannel => channel;
+    public void SetAim(Vector2 aim)
+    {
+        direction = aim.normalized;
+        rotation = Quaternion.Euler(0, 0, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg);
+        trajectory?.SetAim(direction);
+    }
 
     public AttackBodyRuntime(AttackRecipe recipe, AttackSnapshot attack, Vector2 direction,
-        Transform owner, LayerMask layers)
+        Transform owner, LayerMask layers, Vector2? spawnOrigin = null,
+        Func<EnemyActor, DamageResult> applyDamage = null, bool channel = false)
     {
         this.recipe = recipe.Copy();
         this.attack = attack;
         this.owner = owner;
         this.direction = direction;
-        origin = owner.position;
+        origin = spawnOrigin ?? (Vector2)owner.position;
+        this.applyDamage = applyDamage;
+        this.channel = channel;
+        hitPolicy = recipe.CreateHitPolicy();
         rotation = Quaternion.Euler(0, 0, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg);
         speed = recipe.speed * attack.ProjectileSpeedMultiplier;
+        trajectory = recipe.trajectory != null ? recipe.trajectory.CreateRuntime(owner, layers, origin, direction, speed) : null;
+        if (recipe.trajectory != null && trajectory == null) throw new InvalidOperationException("Trajectory returned no runtime.");
         float radius = recipe.radius * (recipe.radiusScalesWithCharge ? Mathf.Max(0.05f, attack.Charge) : 1f);
         recipe.shape.BuildPoints(points, attack.Range, radius);
+        if (points.Count == 0 || points.Count > 512) throw new ArgumentException("Shape must contain 1..512 points.");
+        foreach (var point in points)
+            if (float.IsNaN(point.x) || float.IsNaN(point.y) || float.IsInfinity(point.x) || float.IsInfinity(point.y))
+                throw new ArgumentException("Shape contains a non-finite point.");
         collisionRadius = points.Count == 1 ? radius : recipe.thickness * 0.5f;
         filter = new ContactFilter2D { useTriggers = true };
         filter.SetLayerMask(layers);
@@ -69,10 +93,10 @@ public sealed class AttackBodyRuntime : IDisposable
         if (disposed) return false;
         if (owner == null || !owner.gameObject.activeInHierarchy) return false;
         Physics2D.SyncTransforms();
-        float end = Mathf.Min(recipe.lifetime, age + deltaTime);
+        float end = channel ? age + deltaTime : Mathf.Min(recipe.lifetime, age + deltaTime);
         // Bound temporal and spatial gaps, including a lifetime crossed by one frame.
         // This is sampled collision, not an exact continuous solver for arbitrary curves.
-        float maximumSpeed = recipe.trajectory != null ? recipe.trajectory.MaximumSpeed(speed) : 0f;
+        float maximumSpeed = trajectory != null ? trajectory.MaximumSpeed : 0f;
         float stepTime = Mathf.Min(1f / 120f, collisionRadius / Mathf.Max(1f, maximumSpeed));
         if (recipe.repeatHitSeconds > 0f) stepTime = Mathf.Min(stepTime, recipe.repeatHitSeconds);
         int steps = Mathf.Clamp(Mathf.CeilToInt((end - age) / stepTime), 1, 2048);
@@ -86,19 +110,19 @@ public sealed class AttackBodyRuntime : IDisposable
             if (disposed) return false;
         }
         age = end;
-        return age < recipe.lifetime;
+        ExpiredNaturally = !channel && age >= recipe.lifetime;
+        return !ExpiredNaturally;
     }
 
     private void SetPose(float time)
     {
-        Vector2 anchor = recipe.trajectory != null && recipe.trajectory.FollowOwner
-            ? (Vector2)owner.position : origin;
-        Vector2 offset = recipe.trajectory != null ? recipe.trajectory.Evaluate(time, speed) : Vector2.zero;
-        visual.transform.SetPositionAndRotation(anchor + (Vector2)(rotation * offset), rotation);
+        AttackPose pose = trajectory != null ? trajectory.Evaluate(time) : new AttackPose(origin, rotation);
+        visual.transform.SetPositionAndRotation(pose.Position, pose.Rotation);
     }
 
     private void Scan(float time)
     {
+        hitPolicy.BeginSample(time);
         for (int i = 0; i < points.Count && !disposed; i++)
         {
             Vector2 a = visual.transform.TransformPoint(points[i]);
@@ -122,23 +146,15 @@ public sealed class AttackBodyRuntime : IDisposable
                 var enemy = other.GetComponentInParent<EnemyActor>();
                 if (enemy == null || enemy.IsDead || !enemy.isActiveAndEnabled) continue;
                 var key = (enemy, enemy.SpawnVersion);
-                bool firstHit = !nextHits.ContainsKey(key);
-                if (nextHits.TryGetValue(key, out float next) && time + 0.00001f < next) continue;
-                if (recipe.repeatHitSeconds > 0f)
-                {
-                    bool repeated = nextHits.ContainsKey(key);
-                    int intervals = 1;
-                    if (repeated)
-                        intervals = Mathf.Max(1, Mathf.FloorToInt((time + 0.00001f - next) / recipe.repeatHitSeconds) + 1);
-                    nextHits[key] = (repeated ? next : time) + intervals * recipe.repeatHitSeconds;
-                }
-                else nextHits[key] = float.PositiveInfinity;
-                // Do not apply missed pulses retroactively when a target re-enters.
-                var result = enemy.TakeDamage(new DamageContext(owner, attack.Damage, direction));
+                if (!hitPolicy.TryHit(enemy, time)) continue;
+                bool firstHit = hitTargets.Add(key);
+                var result = applyDamage != null ? applyDamage(enemy)
+                    : enemy.TakeDamage(new DamageContext(owner, attack.Damage, direction));
                 if (result.AppliedDamage > 0f && firstHit && !recipe.unlimitedTargets && ++targetsHit > recipe.pierceCount)
                     Dispose();
             }
         }
+        hitPolicy.EndSample();
     }
 
     public void Dispose()

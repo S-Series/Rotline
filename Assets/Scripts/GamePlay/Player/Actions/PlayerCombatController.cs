@@ -36,14 +36,36 @@ public sealed class PlayerCombatController : MonoBehaviour
     private PlayerActionController actionController;
     private PlayerModeController modeController;
     private InputReader inputReader;
+    private SurvivalRunController run;
 
     private WeaponAttackRuntime weaponRuntime;
+    private AttackRecipe currentRecipe;
+    private CombatEffectStateStore effectStates;
 
     private bool started;
+    public bool HasModularAttack => equippedWeapon != null && equippedWeapon.ResolveRecipe(attackItems).shape != null;
+    public bool IsCharging => weaponRuntime != null && weaponRuntime.IsCharging;
+    public float PreviewRange
+    {
+        get
+        {
+            if (character == null || character.Stats == null) return 0f;
+            float range = character.Stats.AttackRange;
+            if (equippedWeapon == null) return range;
+            var recipe = currentRecipe;
+            if (recipe == null) return range;
+            if (recipe.shape != null && recipe.trajectory is LinearTrajectoryDefinition)
+                return Mathf.Max(range, recipe.speed * character.Stats.ProjectileSpeedMultiplier * recipe.lifetime + recipe.radius);
+            return range;
+        }
+    }
+    public event System.Action<AttackSnapshot> AttackFeedback;
+    public int CountAttackItem(AttackRecipeModifier item) => item != null && attackItems.TryGetValue(item, out int count) ? count : 0;
 
 
     private void Awake()
     {
+        if (AlphaSession.Active) equippedWeapon = AlphaSession.Catalog.weapons[Mathf.Clamp(AlphaSession.CharacterIndex, 0, AlphaSession.Catalog.weapons.Length - 1)];
         character = GetComponent<PlayerCharacter>();
 
         actionController =
@@ -81,6 +103,7 @@ public sealed class PlayerCombatController : MonoBehaviour
     private void Start()
     {
         inputReader = AppRoot.Instance.Input;
+        run = FindFirstObjectByType<SurvivalRunController>();
 
         if (gameplayCamera == null)
         {
@@ -95,7 +118,10 @@ public sealed class PlayerCombatController : MonoBehaviour
 
     private void Update()
     {
+        if (Time.deltaTime <= 0f || (run != null && !run.IsRunning)) return;
         weaponRuntime?.Tick(Time.deltaTime);
+        if (modeController.IsMode(PlayerMode.Combat) && weaponRuntime != null && !weaponRuntime.RequiresChargeInput)
+            OnPrimary(PlayerMode.Combat, 3);
         effectProjectiles.RemoveAll(projectile => projectile == null);
     }
 
@@ -112,7 +138,7 @@ public sealed class PlayerCombatController : MonoBehaviour
 
     private void OnPrimary(PlayerMode mode, int phase)
     {
-        if (!isActiveAndEnabled)
+        if (!isActiveAndEnabled || Time.deltaTime <= 0f || (run != null && !run.IsRunning))
             return;
 
         if (mode != PlayerMode.Combat)
@@ -133,6 +159,8 @@ public sealed class PlayerCombatController : MonoBehaviour
 
         if (weaponRuntime == null)
             return;
+        // Mouse edges are reserved for charge actions. Normal attacks run automatically.
+        if ((phase == 3) == weaponRuntime.RequiresChargeInput) return;
 
         Vector2 origin = transform.position;
 
@@ -156,7 +184,12 @@ public sealed class PlayerCombatController : MonoBehaviour
 
         if (!weaponRuntime.IsAttacking && !weaponRuntime.IsCharging)
             currentAttackEffects = effectSnapshot;
-        if (phase == 0) weaponRuntime.PrimaryStarted(direction);
+        if (phase == 3)
+        {
+            weaponRuntime.PrimaryStarted(direction);
+            weaponRuntime.PrimaryHeld(direction);
+        }
+        else if (phase == 0) weaponRuntime.PrimaryStarted(direction);
         else if (phase == 1) weaponRuntime.PrimaryHeld(direction);
         else weaponRuntime.PrimaryReleased(direction);
     }
@@ -201,11 +234,14 @@ public sealed class PlayerCombatController : MonoBehaviour
             return;
         }
 
+        effectStates ??= new CombatEffectStateStore();
+        currentRecipe = equippedWeapon.ResolveRecipe(attackItems);
         weaponRuntime = equippedWeapon.CreateRuntime(
             character.Stats,
             transform,
             enemyLayers,
-            AttackRecipeResolver.Resolve(equippedWeapon.BaseRecipe, attackItems)
+            currentRecipe,
+            effectStates
         );
 
         if (weaponRuntime != null)
@@ -254,7 +290,7 @@ public sealed class PlayerCombatController : MonoBehaviour
         attackItems[item] = count + 1;
         try
         {
-            if (equippedWeapon != null) AttackRecipeResolver.Resolve(equippedWeapon.BaseRecipe, attackItems);
+            if (equippedWeapon != null) equippedWeapon.ResolveRecipe(attackItems);
         }
         catch
         {
@@ -271,7 +307,7 @@ public sealed class PlayerCombatController : MonoBehaviour
         if (count == 1) attackItems.Remove(item); else attackItems[item] = count - 1;
         try
         {
-            if (equippedWeapon != null) AttackRecipeResolver.Resolve(equippedWeapon.BaseRecipe, attackItems);
+            if (equippedWeapon != null) equippedWeapon.ResolveRecipe(attackItems);
         }
         catch
         {
@@ -306,6 +342,8 @@ public sealed class PlayerCombatController : MonoBehaviour
 
         if (character.Stats == null)
             return;
+
+        AttackFeedback?.Invoke(attack);
 
         var context = new AttackEffectContext(
             attack,
@@ -382,12 +420,16 @@ public sealed class PlayerCombatController : MonoBehaviour
         modeController.ModeChanged -= OnModeChanged;
 
         StopRuntime();
+        effectStates?.Dispose();
+        effectStates = null;
     }
 
 
     private void OnDestroy()
     {
         StopRuntime();
+        effectStates?.Dispose();
+        effectStates = null;
     }
 
 

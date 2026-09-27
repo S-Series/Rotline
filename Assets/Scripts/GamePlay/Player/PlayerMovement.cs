@@ -8,6 +8,20 @@ public sealed class PlayerMovement : MonoBehaviour
     private PlayerStats stats;
 
     private InputReader inputReader;
+    private float dodgeUntil;
+    private float nextDodge;
+    private Vector2 dodgeVelocity;
+    public bool TryDodge()
+    {
+        if (inputReader == null || Time.timeScale <= 0f || Time.time < nextDodge) return false;
+        Vector2 direction = inputReader.Move;
+        if (direction.sqrMagnitude < 0.01f) return false;
+        dodgeVelocity = direction.normalized * stats.MoveSpeed * 2.5f;
+        dodgeUntil = Time.time + 0.18f;
+        nextDodge = Time.time + 1.2f;
+        GetComponent<PlayerHealth>()?.GrantInvulnerability(0.18f);
+        return true;
+    }
 
 
     private void Awake()
@@ -29,6 +43,7 @@ public sealed class PlayerMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (Time.time < dodgeUntil) { rb.linearVelocity = dodgeVelocity; return; }
         Vector2 direction =
             inputReader.Move;
 

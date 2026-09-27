@@ -70,6 +70,7 @@ public static class CombatPlayModeChecks
         var actions = combat.GetComponent<PlayerActionController>();
         var mode = combat.GetComponent<PlayerModeController>();
         var stats = character.Stats;
+        ItemRegressionChecks.CheckInventory(combat.GetComponent<PlayerItemInventory>(), stats);
         float range = stats.AttackRange;
         foreach (string eventName in new[] { "PrimaryStarted", "PrimaryHeld", "PrimaryReleased", "PrimaryCanceled" })
             Require(Subscriptions(actions, eventName, combat) == 1, eventName + " must have one combat subscription.");

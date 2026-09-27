@@ -7,15 +7,19 @@ public readonly struct DamageContext
     public readonly Vector2 Direction;
     public readonly bool IsCritical;
     public readonly int ChainDepth;
+    public readonly long AttackId;
+    public readonly long RootAttackId;
 
     public DamageContext(Transform source, float amount, Vector2 direction,
-        bool isCritical = false, int chainDepth = 0)
+        bool isCritical = false, int chainDepth = 0, long attackId = 0, long rootAttackId = 0)
     {
         Source = source;
         Amount = amount;
         Direction = direction;
         IsCritical = isCritical;
         ChainDepth = chainDepth;
+        AttackId = attackId;
+        RootAttackId = rootAttackId;
     }
 }
 

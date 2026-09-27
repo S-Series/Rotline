@@ -6,6 +6,11 @@ using UnityEngine;
 )]
 public sealed class EnemyDefinition : ScriptableObject
 {
+    [Header("Alpha presentation and attacks")]
+    public Color tint = Color.white;
+    [Min(0.2f)] public float size = 1f;
+    [Range(0, 2)] public int rangedStyle;
+    [Min(0.2f)] public float shotInterval = 2.5f;
     [Header("Identity")]
     [SerializeField]
     private string enemyId;

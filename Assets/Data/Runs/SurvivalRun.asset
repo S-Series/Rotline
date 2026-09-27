@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2dda381070394ce47808cfbaa21a3141, type: 3}
+  m_Name: SurvivalRun
+  m_EditorClassIdentifier: Assembly-CSharp::SurvivalRunDefinition
+  durationSeconds: 600
+  stageSeconds: 60
+  maximumEnemies: 160
+  treasureEveryKills: 25
+  experiencePerKill: 1
+  healingDropChance: 0.05
+  healAmount: 10
+  levelRewards:
+  - {fileID: 11400000, guid: bc85903f0f9b09447a9d1531b8ac6616, type: 2}
+  - {fileID: 11400000, guid: 15e905c9602bb0641b72254b1d3c8d48, type: 2}
+  - {fileID: 11400000, guid: 88dfad830dbeeb44c8258a61bab42c04, type: 2}
+  - {fileID: 11400000, guid: fa10a209c52e2734285c830029803bce, type: 2}
+  - {fileID: 11400000, guid: 31c355fa6bbc51f4a9d0532e9b753eb0, type: 2}
+  treasures:
+  - title: "\uC751\uCD95\uB41C \uAD11\uC120"
+    description: "\uACF5\uACA9\uC744 \uBAA8\uC558\uB2E4\uAC00 \uB193\uC73C\uBA74
+      \uBE54\uC744 \uBC1C\uC0AC\uD569\uB2C8\uB2E4."
+    item: {fileID: 0}
+    attack: {fileID: 11400000, guid: 27866c3da896869448e7c7bf66ae04f0, type: 2}
+  - title: "\uD30C\uB3D9\uC758 \uD575"
+    description: "\uACF5\uACA9\uC744 \uBAA8\uC558\uB2E4\uAC00 \uB193\uC73C\uBA74
+      \uACE0\uB9AC \uD615\uD0DC\uC758 \uACF5\uACA9\uC744 \uD3BC\uCE69\uB2C8\uB2E4."
+    item: {fileID: 0}
+    attack: {fileID: 11400000, guid: 9fedefa0718e9b5458563501bd8e3312, type: 2}
+  - title: "\uAC08\uB77C\uC9C0\uB294 \uD798"
+    description: "\uACF5\uACA9\uC758 \uBC1C\uC0AC \uC218\uC640 \uD37C\uC9D0\uC744
+      \uB298\uB9BD\uB2C8\uB2E4."
+    item: {fileID: 0}
+    attack: {fileID: 11400000, guid: 66c6460457c62aa408c1febdd8793195, type: 2}
+    requiresModularAttack: 1
+  - title: "\uADA4\uB3C4\uC758 \uC528\uC557"
+    description: "\uACF5\uACA9\uC5D0 \uACF5\uC804 \uD6C4 \uC804\uC9C4\uD558\uB294
+      \uADA4\uB3C4\uB97C \uBD80\uC5EC\uD569\uB2C8\uB2E4."
+    item: {fileID: 0}
+    attack: {fileID: 11400000, guid: 3ae7a2c7db29a654488e115ab472aa02, type: 2}
+    requiresModularAttack: 1

@@ -38,6 +38,7 @@ public static class CombatRegressionChecks
     public static void RunBatch()
     {
         Run();
+        CombatModuleRegressionChecks.Run();
         foreach (Type type in new[] { typeof(PlayerStatsRegressionChecks),
             typeof(ModifierScopeRegressionChecks), typeof(ModifierCollectionRegressionChecks) })
             type.GetMethod("Run", BindingFlags.NonPublic | BindingFlags.Static).Invoke(null, null);

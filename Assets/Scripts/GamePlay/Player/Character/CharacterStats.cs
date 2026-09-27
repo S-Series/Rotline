@@ -73,7 +73,7 @@ public struct CharacterStats
     [SerializeField]
     private float criticalChance;
 
-    // 피해 배율. 기본값은 아직 미확정.
+    // 치명타 피해 배율. 0인 기존 데이터는 전투에서 1.5배를 사용한다.
     [SerializeField]
     private float criticalDamage;
 
@@ -90,7 +90,7 @@ public struct CharacterStats
     [SerializeField]
     private float purificationRange;
 
-    // 세부 계산 규칙 미확정
+    // 정화 처리량 추가 배율: 0.2 = 20% 증가.
     [SerializeField]
     private float purificationEfficiency;
 

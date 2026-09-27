@@ -9,6 +9,12 @@ public sealed class ComposedWeaponAttackRuntime
 
     private readonly WeaponAttackDefinition settings;
     private readonly AttackRecipe recipe;
+    private readonly AttackTriggerRuntime input;
+    private readonly AttackExecutionRuntime execution;
+    private AttackExecutionRuntime.AttackContext attackContext;
+    private float charge = 1f;
+    public override bool IsCharging => !IsDisposed && input != null && input.IsCharging;
+    public override bool RequiresChargeInput => input != null && input.RequiresChargeInput;
 
     private readonly GameObject attackObject;
     private readonly AttackHitbox hitbox;
@@ -28,14 +34,21 @@ public sealed class ComposedWeaponAttackRuntime
         PlayerStats stats,
         Transform owner,
         LayerMask enemyLayers,
-        AttackRecipe recipe = null)
-        : base(definition, stats, owner, enemyLayers)
+        AttackRecipe recipe = null,
+        CombatEffectStateStore effects = null)
+        : base(definition, stats, owner, enemyLayers, effects)
     {
         settings = definition;
         this.recipe = (recipe ?? new AttackRecipe()).Copy();
+        execution = new AttackExecutionRuntime(owner, enemyLayers, EffectStates);
 
         try
         {
+            input = this.recipe.CreateTrigger(request =>
+            {
+                charge = request.Charge;
+                return RequestAttack(request.Direction);
+            }, CancelAttack);
             attackObject = Object.Instantiate(
                 definition.HitboxPrefab,
                 owner
@@ -69,7 +82,16 @@ public sealed class ComposedWeaponAttackRuntime
 
     public override void PrimaryHeld(Vector2 direction)
     {
-        if (recipe.trigger == AttackTrigger.Automatic) RequestAttack(direction);
+        if (!IsDisposed) input.Held(direction);
+    }
+    public override void PrimaryStarted(Vector2 direction)
+    { if (CanStart && !IsCharging) input.Started(direction); }
+    public override void PrimaryReleased(Vector2 direction)
+    { if (!IsDisposed) input.Released(direction); }
+    protected override void TickPersistent(float deltaTime)
+    {
+        input.Tick(deltaTime);
+        execution.Tick(deltaTime);
     }
 
 
@@ -77,7 +99,8 @@ public sealed class ComposedWeaponAttackRuntime
         AttackSnapshot attack)
     {
         currentAttack = new AttackSnapshot(attack.Direction, attack.Damage * recipe.damageMultiplier,
-            attack.Range, attack.Duration, attack.Charge, attack.ProjectileSpeedMultiplier);
+            attack.Range, attack.Duration, charge, attack.ProjectileSpeedMultiplier);
+        attackContext = execution.CreateAttack(recipe, currentAttack);
 
         elapsed = 0f;
         activationNotified = false;
@@ -173,9 +196,11 @@ public sealed class ComposedWeaponAttackRuntime
                 // 공격 시작 자세를 먼저 적용한다.
                 ApplyProgress(fromProgress);
 
-                hitbox.Begin(new DamageContext(Owner, currentAttack.Damage, currentAttack.Direction));
+                hitbox.Begin(new DamageContext(Owner, currentAttack.Damage, currentAttack.Direction),
+                    recipe.CreateHitPolicy(), target => execution.Hit(attackContext, target));
 
                 activationNotified = true;
+                execution.Activate(attackContext, Owner.position);
 
                 // 검기는 공격당 정확히 한 번 발사한다.
                 NotifyAttackActiveStarted(currentAttack);
@@ -221,7 +246,7 @@ public sealed class ComposedWeaponAttackRuntime
 
                 ApplyProgress(progress);
 
-                hitbox.Scan();
+                hitbox.Scan(Mathf.Lerp(fromTime, toTime, interpolation));
             }
         }
 
@@ -233,6 +258,7 @@ public sealed class ComposedWeaponAttackRuntime
         }
 
         // 공격 전체 시간이 끝났는지 검사.
+        if (elapsed >= duration) execution.Complete(attackContext, Owner.position);
         return elapsed < duration;
     }
 
@@ -247,6 +273,8 @@ public sealed class ComposedWeaponAttackRuntime
     protected override void CancelCurrentAttack()
     {
         activationNotified = false;
+        input?.Cancel();
+        execution?.Cancel();
 
         hitbox?.End();
     }
@@ -254,6 +282,7 @@ public sealed class ComposedWeaponAttackRuntime
 
     protected override void ReleaseAttack()
     {
+        execution?.Dispose();
         hitbox?.End();
 
         if (attackObject != null)

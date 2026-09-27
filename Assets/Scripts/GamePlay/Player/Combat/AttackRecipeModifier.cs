@@ -1,7 +1,7 @@
 using UnityEngine;
 
 [CreateAssetMenu(menuName = "Game/Combat/Attack Recipe Modifier")]
-public sealed class AttackRecipeModifier : ScriptableObject
+public class AttackRecipeModifier : ScriptableObject
 {
     [SerializeField] private string id;
     [SerializeField] private int priority;
@@ -19,16 +19,25 @@ public sealed class AttackRecipeModifier : ScriptableObject
     [SerializeField, Min(0.01f)] private float chargeSeconds = 1f;
     [SerializeField, Min(0.01f)] private float lifetime = 0.5f;
     [SerializeField, Min(0f)] private float repeatHitSeconds = 0.1f;
+    [SerializeField] private AttackTriggerDefinition triggerModule;
+    [SerializeField] private AttackEmissionDefinition emission;
+    [SerializeField] private AttackHitPolicyDefinition hitPolicy;
+    [SerializeField] private CombatEffectDefinition[] effects;
 
     public string Id => id;
     public int Priority => priority;
     public int MaximumStacks => Mathf.Max(1, maximumStacks);
 
-    public void Apply(AttackRecipe recipe, int stacks)
+    public virtual void Apply(AttackRecipe recipe, int stacks)
     {
         stacks = Mathf.Clamp(stacks, 0, MaximumStacks);
         if (stacks == 0) return;
-        if (replaceTrigger) recipe.trigger = trigger;
+        if (replaceTrigger) { recipe.trigger = trigger; recipe.triggerModule = null; }
+        if (triggerModule != null) recipe.triggerModule = triggerModule;
+        if (emission != null) recipe.emission = emission;
+        if (hitPolicy != null) recipe.hitPolicy = hitPolicy;
+        if (effects != null) foreach (var effect in effects)
+            if (effect != null && !recipe.effects.Contains(effect)) recipe.effects.Add(effect);
         if (shape != null) recipe.shape = shape;
         if (trajectory != null) recipe.trajectory = trajectory;
         if (scaleRadiusWithCharge) recipe.radiusScalesWithCharge = true;

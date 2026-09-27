@@ -1,98 +1,72 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 public sealed class ModularWeaponAttackRuntime : WeaponAttackRuntime
 {
     private readonly AttackRecipe recipe;
-    private readonly List<AttackBodyRuntime> bodies = new();
-    private bool charging;
-    private float chargeElapsed;
-    private float releaseCharge = 1f;
+    private readonly AttackTriggerRuntime input;
+    private readonly AttackExecutionRuntime execution;
+    private AttackActivation activation;
+    private bool channeling;
     private float recovery;
-    public override bool IsCharging => charging && !IsDisposed;
-    public int ActiveBodyCount => bodies.Count;
+    public override bool IsCharging => !IsDisposed && input != null && input.IsCharging;
+    public override bool RequiresChargeInput => input != null && input.RequiresChargeInput;
+    public int ActiveBodyCount => execution.ActiveBodyCount;
+    public int PendingEmissionCount => execution.PendingCount;
 
     public ModularWeaponAttackRuntime(WeaponAttackDefinition definition, PlayerStats stats,
-        Transform owner, LayerMask layers, AttackRecipe recipe) : base(definition, stats, owner, layers)
+        Transform owner, LayerMask layers, AttackRecipe recipe, CombatEffectStateStore effects = null)
+        : base(definition, stats, owner, layers, effects)
     {
         this.recipe = recipe.Copy();
+        execution = new AttackExecutionRuntime(owner, layers, EffectStates);
+        try { input = this.recipe.CreateTrigger(Fire, CancelAttack); }
+        catch { Dispose(); throw; }
     }
-
     public override void PrimaryStarted(Vector2 direction)
-    {
-        if (recipe.trigger != AttackTrigger.ChargeRelease)
-        {
-            RequestAttack(direction);
-            return;
-        }
-        if (!CanStart || charging) return;
-        charging = true;
-        chargeElapsed = 0f;
-    }
-
+    { if (CanStart && !IsCharging) input.Started(direction); }
     public override void PrimaryHeld(Vector2 direction)
-    {
-        if (recipe.trigger == AttackTrigger.Automatic) RequestAttack(direction);
-    }
-
+    { if (!IsDisposed) input.Held(direction); }
     public override void PrimaryReleased(Vector2 direction)
+    { if (!IsDisposed) input.Released(direction); }
+    private bool Fire(AttackActivation request)
     {
-        if (!IsCharging) return;
-        charging = false;
-        releaseCharge = Mathf.Clamp01(chargeElapsed / recipe.chargeSeconds);
-        if (releaseCharge < recipe.minimumCharge) return;
-        RequestAttack(direction);
+        if (channeling && request.Channel && IsAttacking)
+        {
+            execution.SetChannelAim(request.Direction);
+            return true;
+        }
+        activation = request;
+        return RequestAttack(request.Direction);
     }
-
     protected override void StartAttack(AttackSnapshot attack)
     {
-        float charge = recipe.trigger == AttackTrigger.ChargeRelease ? releaseCharge : 1f;
         recovery = attack.Duration;
+        channeling = activation.Channel;
+        float charge = activation.Direction.sqrMagnitude > 0f ? activation.Charge : 1f;
         var shot = new AttackSnapshot(attack.Direction, attack.Damage * recipe.damageMultiplier,
             attack.Range, recipe.lifetime, charge, attack.ProjectileSpeedMultiplier);
-        for (int i = 0; i < recipe.projectileCount; i++)
-        {
-            // A full circle excludes its duplicate endpoint.
-            float denominator = recipe.spreadDegrees >= 360f
-                ? recipe.projectileCount : Mathf.Max(1, recipe.projectileCount - 1);
-            float angle = recipe.projectileCount == 1 ? 0f
-                : -recipe.spreadDegrees * 0.5f + recipe.spreadDegrees * i / denominator;
-            Vector2 direction = Quaternion.Euler(0f, 0f, angle) * shot.Direction;
-            bodies.Add(new AttackBodyRuntime(recipe, shot, direction, Owner, EnemyLayers));
-        }
+        var context = execution.CreateAttack(recipe, shot);
+        execution.Activate(context, Owner.position);
+        if (!IsAttacking) return;
+        execution.Emit(context, Owner.position, channeling);
         NotifyAttackActiveStarted(shot);
     }
-
     protected override void TickPersistent(float deltaTime)
     {
-        if (charging) chargeElapsed = Mathf.Min(recipe.chargeSeconds, chargeElapsed + deltaTime);
-        // Damage callbacks may cancel/dispose this runtime and clear the list.
-        for (int i = bodies.Count - 1; i >= 0; i--)
-        {
-            var body = bodies[i];
-            bool alive = body.Tick(deltaTime);
-            if (IsDisposed || i >= bodies.Count || bodies[i] != body) return;
-            if (!alive)
-            {
-                body.Dispose();
-                bodies.RemoveAt(i);
-            }
-        }
+        input.Tick(deltaTime);
+        execution.Tick(deltaTime);
     }
-
     protected override bool UpdateAttack(float deltaTime)
     {
         recovery -= deltaTime;
-        return recovery > 0f;
+        return channeling || recovery > 0f;
     }
-
     protected override void UpdatePhysics() { }
     protected override void CancelCurrentAttack()
     {
-        charging = false;
-        chargeElapsed = 0f;
-        foreach (var body in bodies) body.Dispose();
-        bodies.Clear();
+        channeling = false;
+        input?.Cancel();
+        execution?.Cancel();
     }
-    protected override void ReleaseAttack() => CancelCurrentAttack();
+    protected override void ReleaseAttack() => execution?.Dispose();
 }

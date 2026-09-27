@@ -3,7 +3,8 @@ using UnityEngine;
 
 public sealed class AttackHitbox : MonoBehaviour
 {
-    private readonly HashSet<(EnemyActor, uint)> hitEnemies = new();
+    private AttackHitPolicyRuntime hitPolicy;
+    private System.Func<EnemyActor, DamageResult> applyDamage;
     private readonly List<Collider2D> overlaps = new(32);
 
     private Collider2D hitCollider;
@@ -34,9 +35,11 @@ public sealed class AttackHitbox : MonoBehaviour
         Begin(new DamageContext(null, attackDamage, Vector2.zero));
     }
 
-    public void Begin(DamageContext attackDamage)
+    public void Begin(DamageContext attackDamage, AttackHitPolicyRuntime policy = null,
+        System.Func<EnemyActor, DamageResult> applyDamage = null)
     {
-        hitEnemies.Clear();
+        hitPolicy = policy ?? new IntervalHitPolicyRuntime(0f);
+        this.applyDamage = applyDamage;
 
         damage = attackDamage;
         active = true;
@@ -45,7 +48,7 @@ public sealed class AttackHitbox : MonoBehaviour
     }
 
 
-    public void Scan()
+    public void Scan(float time = 0f)
     {
         if (!active || hitCollider == null)
             return;
@@ -57,6 +60,7 @@ public sealed class AttackHitbox : MonoBehaviour
         overlaps.Clear();
 
         hitCollider.Overlap(filter, overlaps);
+        hitPolicy.BeginSample(time);
 
         foreach (Collider2D other in overlaps)
         {
@@ -75,11 +79,13 @@ public sealed class AttackHitbox : MonoBehaviour
             }
 
             // 같은 공격에서 한 적에게 1회만 피해.
-            if (!hitEnemies.Add((enemy, enemy.SpawnVersion)))
+            if (!hitPolicy.TryHit(enemy, time))
                 continue;
 
-            enemy.TakeDamage(damage);
+            if (applyDamage != null) applyDamage(enemy);
+            else enemy.TakeDamage(damage);
         }
+        hitPolicy.EndSample();
     }
 
 

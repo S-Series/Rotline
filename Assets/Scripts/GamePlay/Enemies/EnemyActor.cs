@@ -11,9 +11,16 @@ public sealed class EnemyActor : MonoBehaviour
 
     private float currentHealth;
     private bool isDead;
+    private PlayerHealth targetHealth;
+    private float contactMultiplier = 1f;
+    private Collider2D bodyCollider;
+    private Collider2D targetCollider;
+    private float knockbackUntil;
+    private Vector2 knockbackVelocity;
 
     public EnemyDefinition Definition => definition;
     public float CurrentHealth => currentHealth;
+    public float MaximumHealth { get; private set; }
     public bool IsDead => isDead;
 
     // 사망한 적과 사망 위치를 전달한다.
@@ -35,6 +42,11 @@ public sealed class EnemyActor : MonoBehaviour
         NavigationService navigation)
     {
         this.definition = definition;
+        targetHealth = target != null ? target.GetComponent<PlayerHealth>() : null;
+        bodyCollider = GetComponent<Collider2D>();
+        targetCollider = target != null ? target.GetComponent<Collider2D>() : null;
+        contactMultiplier = 1f;
+        knockbackUntil = 0f;
         if (movementMotor == null) movementMotor = GetComponent<EnemyMovementMotor>();
 
         if (definition == null)
@@ -56,9 +68,17 @@ public sealed class EnemyActor : MonoBehaviour
         }
 
         // 풀에서 재사용할 때마다 체력과 사망 상태 초기화.
-        currentHealth = Mathf.Max(0.01f, definition.MaxHealth);
+        currentHealth = MaximumHealth = Mathf.Max(0.01f, definition.MaxHealth);
         isDead = false;
         SpawnVersion++;
+        if (AlphaSession.Active)
+        {
+            transform.localScale = Vector3.one * definition.size;
+            foreach (var renderer in GetComponentsInChildren<SpriteRenderer>()) { renderer.color = definition.tint; renderer.sprite = AlphaVisuals.Square; }
+            var offense = GetComponent<AlphaEnemyOffense>();
+            if (offense == null) offense = gameObject.AddComponent<AlphaEnemyOffense>();
+            offense.Initialize(this, targetHealth);
+        }
 
         EnemyMovementContext context =
             new EnemyMovementContext(
@@ -89,6 +109,29 @@ public sealed class EnemyActor : MonoBehaviour
             return;
 
         movementRuntime?.FixedTick(Time.fixedDeltaTime);
+        if (Time.time < knockbackUntil) movementMotor.SetVelocity(knockbackVelocity);
+        // Enemy/player collision is disabled to allow crowds; query actual shapes for contact.
+        if (targetHealth != null && bodyCollider != null && targetCollider != null &&
+            ((Vector2)targetHealth.transform.position - (Vector2)transform.position).sqrMagnitude < 9f &&
+            bodyCollider.Distance(targetCollider).distance <= 0.04f)
+            targetHealth.TakeDamage(definition.ContactDamage * contactMultiplier);
+    }
+
+    public void ScaleDifficulty(float healthMultiplier, float damageMultiplier)
+    {
+        currentHealth *= Mathf.Max(1f, healthMultiplier);
+        MaximumHealth *= Mathf.Max(1f, healthMultiplier);
+        contactMultiplier = Mathf.Max(1f, damageMultiplier);
+    }
+
+    private void OnCollisionStay2D(Collision2D collision) => TryContact(collision.collider);
+    private void OnCollisionEnter2D(Collision2D collision) => TryContact(collision.collider);
+    private void OnTriggerStay2D(Collider2D collider) => TryContact(collider);
+    private void TryContact(Collider2D collider)
+    {
+        if (isDead || definition == null || targetHealth == null) return;
+        if (collider.GetComponentInParent<PlayerHealth>() == targetHealth)
+            targetHealth.TakeDamage(definition.ContactDamage * contactMultiplier);
     }
 
 
@@ -110,10 +153,25 @@ public sealed class EnemyActor : MonoBehaviour
             return default;
         }
 
+        PlayerStats sourceStats = context.Source != null ? context.Source.GetComponent<PlayerStats>() : null;
+        if (sourceStats != null && !context.IsCritical && UnityEngine.Random.value < sourceStats.CriticalChance)
+        {
+            damage *= sourceStats.CriticalDamage > 0f ? Mathf.Max(1f, sourceStats.CriticalDamage) : 1.5f;
+            context = new DamageContext(context.Source, damage, context.Direction, true, context.ChainDepth, context.AttackId, context.RootAttackId);
+        }
         float applied = Mathf.Min(currentHealth, damage);
         currentHealth =
             Mathf.Max(0f, currentHealth - damage);
         bool killed = currentHealth <= 0f;
+        if (!killed && sourceStats != null && sourceStats.KnockbackPower > 0f)
+        {
+            Vector2 direction = context.Direction.sqrMagnitude > 0f ? context.Direction.normalized : ((Vector2)transform.position - (Vector2)context.Source.position).normalized;
+            knockbackVelocity = direction * sourceStats.KnockbackPower;
+            knockbackUntil = Time.time + 0.15f;
+        }
+        if (context.Source != null && context.Source.TryGetComponent<PlayerCharacter>(out var source) &&
+            source.AbilityRuntime is BerserkAbilityRuntime berserk && berserk.ActiveLifeStealFraction > 0f)
+            source.GetComponent<PlayerHealth>()?.Heal(applied * berserk.ActiveLifeStealFraction);
         var result = new DamageResult(applied, killed);
         // Lock death before callbacks; a listener may deal damage recursively.
         if (killed) isDead = true;
@@ -146,6 +204,7 @@ public sealed class EnemyActor : MonoBehaviour
     {
         movementRuntime = null;
         definition = null;
+        targetHealth = null;
 
         currentHealth = 0f;
         isDead = false;

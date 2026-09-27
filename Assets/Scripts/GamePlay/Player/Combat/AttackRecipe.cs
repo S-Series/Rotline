@@ -2,13 +2,19 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum AttackTrigger { Automatic, Press, ChargeRelease }
+public enum AttackTrigger { Automatic, Press, ChargeRelease, Channel }
 
 // Serialized configuration only. Mutable combat state belongs to each runtime.
 [Serializable]
 public sealed class AttackRecipe
 {
     public AttackTrigger trigger;
+    public AttackTriggerDefinition triggerModule;
+    public AttackEmissionDefinition emission;
+    public AttackHitPolicyDefinition hitPolicy;
+    public List<CombatEffectDefinition> effects = new();
+    [Range(0, 16)] public int maxChainDepth = 4;
+    [Range(0, 256)] public int maxChildAttacks = 64;
     public AttackShapeDefinition shape;
     public AttackTrajectoryDefinition trajectory;
     [Min(0.01f)] public float chargeSeconds = 1f;
@@ -25,7 +31,21 @@ public sealed class AttackRecipe
     [Range(0f, 360f)] public float spreadDegrees;
     [Min(0.01f)] public float damageMultiplier = 1f;
 
-    public AttackRecipe Copy() => (AttackRecipe)MemberwiseClone();
+    public AttackRecipe Copy()
+    {
+        var copy = (AttackRecipe)MemberwiseClone();
+        copy.effects = effects != null ? new List<CombatEffectDefinition>(effects) : new List<CombatEffectDefinition>();
+        return copy;
+    }
+
+    public AttackTriggerRuntime CreateTrigger(Func<AttackActivation, bool> fire, Action stop) =>
+        (triggerModule != null ? triggerModule.CreateRuntime(Copy(), fire, stop)
+            : new StandardAttackTriggerRuntime(trigger, this, fire, stop))
+        ?? throw new InvalidOperationException("Trigger module returned no runtime.");
+
+    public AttackHitPolicyRuntime CreateHitPolicy() =>
+        (hitPolicy != null ? hitPolicy.CreateRuntime(Copy()) : new IntervalHitPolicyRuntime(repeatHitSeconds))
+        ?? throw new InvalidOperationException("Hit policy returned no runtime.");
 
     public void Validate()
     {
@@ -41,8 +61,10 @@ public sealed class AttackRecipe
         if (minimumCharge > 1f || spreadDegrees > 360f || projectileCount < 1 ||
             projectileCount > 32 || pierceCount < 0 || !Enum.IsDefined(typeof(AttackTrigger), trigger))
             throw new ArgumentException("Invalid attack recipe.");
-        if (shape == null && trigger == AttackTrigger.ChargeRelease)
-            throw new ArgumentException("ChargeRelease requires an attack shape.");
+        if (maxChainDepth < 0 || maxChainDepth > 16 || maxChildAttacks < 0 || maxChildAttacks > 256)
+            throw new ArgumentException("Invalid proc chain limits.");
+        if (shape == null && (emission != null || (triggerModule == null && trigger == AttackTrigger.Channel)))
+            throw new ArgumentException("Scheduled/channel melee requires a shape and a swing trajectory; the legacy collider adapter does not support it.");
     }
 
     private static void Positive(float value, string name)
@@ -61,9 +83,11 @@ public sealed class AttackRecipe
 public static class AttackRecipeResolver
 {
     public static AttackRecipe Resolve(AttackRecipe basis,
-        IReadOnlyDictionary<AttackRecipeModifier, int> inventory)
+        IReadOnlyDictionary<AttackRecipeModifier, int> inventory,
+        IReadOnlyList<AttackCompositionRule> rules = null)
     {
         var recipe = (basis ?? new AttackRecipe()).Copy();
+        var sources = new Dictionary<string, int>(StringComparer.Ordinal);
         if (inventory != null)
         {
             var entries = new List<AttackRecipeModifier>(inventory.Keys);
@@ -78,6 +102,22 @@ public static class AttackRecipeResolver
                 if (string.IsNullOrWhiteSpace(item.Id) || !ids.Add(item.Id))
                     throw new ArgumentException("Attack items require unique, non-empty IDs.");
                 item.Apply(recipe, inventory[item]);
+                sources[item.Id] = inventory[item];
+            }
+        }
+        if (rules != null)
+        {
+            var ordered = new List<AttackCompositionRule>(rules);
+            ordered.RemoveAll(rule => rule == null);
+            ordered.Sort((a, b) => a.Priority != b.Priority ? a.Priority.CompareTo(b.Priority)
+                : StringComparer.Ordinal.Compare(a.Id, b.Id));
+            var ids = new HashSet<string>(StringComparer.Ordinal);
+            var readOnly = new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(sources);
+            foreach (var rule in ordered)
+            {
+                if (string.IsNullOrWhiteSpace(rule.Id) || !ids.Add(rule.Id))
+                    throw new ArgumentException("Composition rules require unique IDs.");
+                rule.Apply(recipe, readOnly);
             }
         }
         recipe.Validate();

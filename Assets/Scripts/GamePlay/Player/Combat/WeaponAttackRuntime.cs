@@ -33,6 +33,8 @@ public abstract class WeaponAttackRuntime : IDisposable
     protected readonly PlayerStats Stats;
     protected readonly Transform Owner;
     protected readonly LayerMask EnemyLayers;
+    protected readonly CombatEffectStateStore EffectStates;
+    private readonly bool ownsEffectStates;
 
     private readonly ModifierScope weaponModifiers;
 
@@ -45,6 +47,7 @@ public abstract class WeaponAttackRuntime : IDisposable
     public bool IsDisposed => disposed;
     public float NextAttackTime { get => nextAttackTime; set => nextAttackTime = Mathf.Max(nextAttackTime, value); }
     public virtual bool IsCharging => false;
+    public virtual bool RequiresChargeInput => false;
     protected bool CanStart => !disposed && !attacking && Time.time >= nextAttackTime;
     public virtual void PrimaryStarted(Vector2 direction) => RequestAttack(direction);
     public virtual void PrimaryHeld(Vector2 direction) => RequestAttack(direction);
@@ -58,7 +61,8 @@ public abstract class WeaponAttackRuntime : IDisposable
         WeaponAttackDefinition definition,
         PlayerStats stats,
         Transform owner,
-        LayerMask enemyLayers)
+        LayerMask enemyLayers,
+        CombatEffectStateStore effectStates = null)
     {
         if (definition == null)
         {
@@ -76,6 +80,8 @@ public abstract class WeaponAttackRuntime : IDisposable
             : throw new ArgumentNullException(nameof(owner));
 
         EnemyLayers = enemyLayers;
+        ownsEffectStates = effectStates == null;
+        EffectStates = effectStates ?? new CombatEffectStateStore();
 
         weaponModifiers = new ModifierScope(stats);
 
@@ -159,6 +165,7 @@ public abstract class WeaponAttackRuntime : IDisposable
 
         try
         {
+            EffectStates.Advance(deltaTime);
             TickPersistent(deltaTime);
             if (disposed || !attacking) return;
             stillAttacking = UpdateAttack(deltaTime);
@@ -237,6 +244,7 @@ public abstract class WeaponAttackRuntime : IDisposable
                 finally
                 {
                     AttackActiveStarted = null;
+                    if (ownsEffectStates) EffectStates.Dispose();
                 }
             }
         }

@@ -7,7 +7,10 @@ using UnityEngine;
 public class WeaponAttackDefinition : ScriptableObject
 {
     [SerializeField] private AttackRecipe recipe = new();
+    [SerializeField] private System.Collections.Generic.List<AttackCompositionRule> compositionRules = new();
     public AttackRecipe BaseRecipe => recipe.Copy();
+    public AttackRecipe ResolveRecipe(System.Collections.Generic.IReadOnlyDictionary<AttackRecipeModifier, int> sources) =>
+        AttackRecipeResolver.Resolve(recipe, sources, compositionRules);
     [Header("Attack Components")]
     [SerializeField]
     private GameObject hitboxPrefab;
@@ -40,12 +43,13 @@ public class WeaponAttackDefinition : ScriptableObject
         PlayerStats stats,
         Transform owner,
         LayerMask enemyLayers,
-        AttackRecipe resolvedRecipe = null)
+        AttackRecipe resolvedRecipe = null,
+        CombatEffectStateStore effectStates = null)
     {
         AttackRecipe configuration = (resolvedRecipe ?? recipe).Copy();
         configuration.Validate();
         if (configuration.shape != null)
-            return new ModularWeaponAttackRuntime(this, stats, owner, enemyLayers, configuration);
+            return new ModularWeaponAttackRuntime(this, stats, owner, enemyLayers, configuration, effectStates);
 
         if (motion == null || hitboxPrefab == null)
         {
@@ -74,7 +78,8 @@ public class WeaponAttackDefinition : ScriptableObject
             stats,
             owner,
             enemyLayers,
-            configuration
+            configuration,
+            effectStates
         );
     }
 }

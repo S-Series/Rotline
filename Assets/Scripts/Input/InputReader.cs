@@ -77,6 +77,12 @@ public sealed class InputReader : MonoBehaviour
         inputActions.Global.Disable();
     }
 
+    public void SetGameplayEnabled(bool enabled)
+    {
+        if (enabled) inputActions.Player.Enable();
+        else inputActions.Player.Disable();
+    }
+
 
     private void OnDestroy()
     {

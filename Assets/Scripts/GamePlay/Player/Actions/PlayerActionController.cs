@@ -48,7 +48,7 @@ public sealed class PlayerActionController : MonoBehaviour
 
     private void Update()
     {
-        if (inputReader == null)
+        if (inputReader == null || Time.timeScale == 0f)
             return;
 
         HandlePrimary();
@@ -131,6 +131,7 @@ public sealed class PlayerActionController : MonoBehaviour
 
         if (inputReader.DodgePressed)
         {
+            if (TryGetComponent<PlayerMovement>(out var movement)) movement.TryDodge();
             DodgeRequested?.Invoke();
             Log("Dodge Requested");
         }

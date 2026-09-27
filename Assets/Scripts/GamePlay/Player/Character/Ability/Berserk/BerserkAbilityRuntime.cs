@@ -14,7 +14,7 @@ public sealed class BerserkAbilityRuntime : CharacterAbilityRuntime
     public float ToggleCooldownRemaining =>
         toggleCooldownRemaining;
 
-    // 실제 적용에는 체력/전투 시스템 연결이 필요하다.
+    // PlayerHealth와 EnemyActor에서 회복 차단 및 흡혈을 적용한다.
     public bool BlocksHealthRegeneration => IsActive;
 
     public float ActiveLifeStealFraction =>
@@ -124,7 +124,7 @@ public sealed class BerserkAbilityRuntime : CharacterAbilityRuntime
         {
             gauge.Restore(
                 CalculateAmount(
-                    settings.RestorePerSecond,
+                    settings.RestorePerSecond + Stats.ResourceRegen,
                     deltaTime
                 )
             );
