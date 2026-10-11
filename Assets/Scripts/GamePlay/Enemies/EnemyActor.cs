@@ -86,7 +86,8 @@ public sealed class EnemyActor : MonoBehaviour
                 target,
                 movementMotor,
                 navigation,
-                definition.MoveSpeed
+                definition,
+                bodyCollider
             );
 
         movementRuntime =
@@ -110,11 +111,18 @@ public sealed class EnemyActor : MonoBehaviour
 
         movementRuntime?.FixedTick(Time.fixedDeltaTime);
         if (Time.time < knockbackUntil) movementMotor.SetVelocity(knockbackVelocity);
-        // Enemy/player collision is disabled to allow crowds; query actual shapes for contact.
+        // Layer collision is disabled; melee attacks use the authored range.
         if (targetHealth != null && bodyCollider != null && targetCollider != null &&
-            ((Vector2)targetHealth.transform.position - (Vector2)transform.position).sqrMagnitude < 9f &&
-            bodyCollider.Distance(targetCollider).distance <= 0.04f)
-            targetHealth.TakeDamage(definition.ContactDamage * contactMultiplier);
+            definition != null)
+        {
+            float distanceSquared = ((Vector2)targetHealth.transform.position -
+                (Vector2)transform.position).sqrMagnitude;
+            bool inMeleeRange = definition.rangedStyle == 0 && definition.MeleeAttackRange > 0f &&
+                distanceSquared <= definition.MeleeAttackRange * definition.MeleeAttackRange;
+            if (inMeleeRange || (distanceSquared < 9f &&
+                bodyCollider.Distance(targetCollider).distance <= 0.04f))
+                targetHealth.TakeDamage(definition.ContactDamage * contactMultiplier);
+        }
     }
 
     public void ScaleDifficulty(float healthMultiplier, float damageMultiplier)

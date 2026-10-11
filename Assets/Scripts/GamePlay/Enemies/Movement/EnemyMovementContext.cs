@@ -6,6 +6,8 @@ public sealed class EnemyMovementContext
     public Transform Target { get; }
     public EnemyMovementMotor Motor { get; }
     public NavigationService Navigation { get; }
+    public EnemyTargeting Targeting { get; }
+    public EnemySteering Steering { get; }
 
     public float MoveSpeed { get; }
 
@@ -15,12 +17,16 @@ public sealed class EnemyMovementContext
         Transform target,
         EnemyMovementMotor motor,
         NavigationService navigation,
-        float moveSpeed)
+        EnemyDefinition definition,
+        Collider2D bodyCollider)
     {
         Self = self;
         Target = target;
         Motor = motor;
         Navigation = navigation;
-        MoveSpeed = moveSpeed;
+        MoveSpeed = definition.MoveSpeed;
+        Targeting = new EnemyTargeting(target, definition.MinimumDistance, definition.MaximumDistance);
+        Steering = new EnemySteering(self, bodyCollider, navigation,
+            definition.SeparationRadius, definition.SeparationWeight);
     }
 }

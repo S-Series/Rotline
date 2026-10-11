@@ -73,6 +73,23 @@ public static class AlphaSetup
         var data = new SerializedObject(value); data.FindProperty("enemyId").stringValue = id;
         data.FindProperty("maxHealth").floatValue = health; data.FindProperty("moveSpeed").floatValue = speed; data.FindProperty("contactDamage").floatValue = damage;
         data.FindProperty("movement").objectReferenceValue = AssetDatabase.LoadAssetAtPath<EnemyMovementDefinition>("Assets/Data/Enemies/Movement/" + movement + ".asset");
+        if (style == 1)
+        {
+            data.FindProperty("rangeBand").enumValueIndex = (int)EnemyRangeBand.Medium;
+            data.FindProperty("minimumDistance").floatValue = 4f;
+            data.FindProperty("maximumDistance").floatValue = 6f;
+            data.FindProperty("meleeAttackRange").floatValue = 0f;
+        }
+        else if (style == 2)
+        {
+            data.FindProperty("rangeBand").enumValueIndex = (int)EnemyRangeBand.Long;
+            data.FindProperty("minimumDistance").floatValue = 6f;
+            data.FindProperty("maximumDistance").floatValue = 8f;
+            data.FindProperty("separationRadius").floatValue = 2f;
+            data.FindProperty("meleeAttackRange").floatValue = 0f;
+        }
+        else if (movement == "MoveHop_Slime")
+            data.FindProperty("meleeAttackRange").floatValue = 0f;
         data.ApplyModifiedPropertiesWithoutUndo(); value.rangedStyle = style; value.tint = color; value.size = size;
         AssetDatabase.CreateAsset(value, path); return value;
     }

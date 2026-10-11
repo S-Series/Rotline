@@ -12,5 +12,3 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: accf5020243c6d94da50e75cdfe263c6, type: 3}
   m_Name: MoveKeepDistance_Default
   m_EditorClassIdentifier: Assembly-CSharp::KeepDistanceMovementDefinition
-  minDistance: 4
-  maxDistance: 7

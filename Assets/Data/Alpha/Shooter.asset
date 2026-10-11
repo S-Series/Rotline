@@ -21,4 +21,10 @@ MonoBehaviour:
   maxHealth: 16
   moveSpeed: 1.6
   contactDamage: 2
+  rangeBand: 2
+  minimumDistance: 4
+  maximumDistance: 6
+  separationRadius: 0.9
+  separationWeight: 0.5
+  meleeAttackRange: 0
   movement: {fileID: 11400000, guid: f4244d18fbce0b54ca39618395462e64, type: 2}

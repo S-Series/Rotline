@@ -60,6 +60,7 @@ public static class SurvivalRunChecks
                 ItemRegressionChecks.CheckInventory(run.Player.GetComponent<PlayerItemInventory>(), run.Player.Stats);
                 var enemy = Object.FindFirstObjectByType<EnemyActor>();
                 Require(enemy != null, "Spawner must create an enemy.");
+                CheckEnemySteering(run);
                 healthBeforeContact = run.Health.Current;
                 enemy.transform.position = run.Player.transform.position;
                 Physics2D.SyncTransforms();
@@ -142,6 +143,39 @@ public static class SurvivalRunChecks
         catch (Exception exception) { Debug.LogException(exception); Exit(1); }
     }
     private static void Require(bool value, string message) { checks++; if (!value) throw new InvalidOperationException(message); }
+    private static void CheckEnemySteering(SurvivalRunController run)
+    {
+        Require(Physics2D.GetIgnoreLayerCollision(LayerMask.NameToLayer("Enemy"), LayerMask.NameToLayer("Enemy")),
+            "Enemies must not collide physically with other enemies.");
+        Require(!Physics2D.GetIgnoreLayerCollision(LayerMask.NameToLayer("Enemy"), LayerMask.NameToLayer("World")),
+            "Enemies must still collide with the world.");
+        Vector2 center = run.Player.transform.position;
+        var targeting = new EnemyTargeting(run.Player.transform, 1f, 1.5f);
+        Require(targeting.Approach(center + Vector2.right * 3f).x < 0f,
+            "Enemies outside the band must approach the player.");
+        Require(targeting.Approach(center + Vector2.right * 1.25f) == Vector2.zero,
+            "Enemies inside the band must stop approaching.");
+        Require(targeting.Approach(center + Vector2.right * 0.5f).x > 0f,
+            "Enemies inside the minimum distance must retreat.");
+        Require(targeting.Approach(center).sqrMagnitude > 0f,
+            "An enemy exactly on the player must leave the center.");
+        Require(EnemyRangeBands.DefaultDistances(EnemyRangeBand.Sniper).x >
+            EnemyRangeBands.DefaultDistances(EnemyRangeBand.Long).y,
+            "Sniper band must extend beyond long range.");
+        var self = new GameObject("Steering check A", typeof(BoxCollider2D));
+        var other = new GameObject("Steering check B", typeof(BoxCollider2D));
+        try
+        {
+            self.layer = other.layer = LayerMask.NameToLayer("Enemy");
+            self.transform.position = new Vector2(1000f, 1000f);
+            other.transform.position = new Vector2(1000.3f, 1000f);
+            Physics2D.SyncTransforms();
+            var steering = new EnemySteering(self.transform, self.GetComponent<Collider2D>(), null, 1f, 0.5f);
+            Require(steering.Direction(self.transform.position, Vector2.zero, false).x < 0f,
+                "Nearby enemies must steer apart without physical collision.");
+        }
+        finally { Object.Destroy(self); Object.Destroy(other); }
+    }
     private static void CheckCombatStats(SurvivalRunController run)
     {
         // The reward menu deliberately pauses health damage. Verify that boundary first.
