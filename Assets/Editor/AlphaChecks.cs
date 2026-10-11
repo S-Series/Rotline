@@ -15,24 +15,25 @@ public static class AlphaChecks
     private static int phase;
     private static int checks;
     private static double next;
-    private static double deadline;
     private static bool errors;
     private static int walletBefore;
     static AlphaChecks()
     {
         if (!SessionState.GetBool(Key, false)) return;
-        AlphaSession.UseProfileForChecks(SessionState.GetString(Key + "Path", ""));
-        next = EditorApplication.timeSinceStartup + 4; deadline = EditorApplication.timeSinceStartup + 100;
+        BatchCheckGuard.RestoreProfile();
+        next = EditorApplication.timeSinceStartup + 4;
         Application.logMessageReceived += OnLog; EditorApplication.update += Update;
     }
     public static void RunBatch()
     {
-        CombatRegressionChecks.RunBatch();
-        AlphaSetup.Install();
-        string path = Path.GetFullPath("Logs/AlphaChecks/" + Guid.NewGuid().ToString("N") + ".json");
-        CheckPersistence(path + ".probe");
-        SessionState.SetString(Key + "Path", path); SessionState.SetBool(Key, true);
-        EditorSceneManager.OpenScene("Assets/Scenes/MainMenu.unity"); EditorApplication.isPlaying = true;
+        BatchCheckGuard.Run(Key, 100, () =>
+        {
+            BatchCheckGuard.Gameplay();
+            BatchCheckGuard.Menu();
+            CombatRegressionChecks.RunBatch();
+            CheckPersistence(BatchCheckGuard.ProfilePath + ".probe");
+            EditorApplication.isPlaying = true;
+        });
     }
     private static void CheckPersistence(string path)
     {
@@ -73,7 +74,6 @@ public static class AlphaChecks
         if (!EditorApplication.isPlaying || EditorApplication.timeSinceStartup < next) return;
         try
         {
-            Require(EditorApplication.timeSinceStartup < deadline, "Alpha test timed out.");
             var run = Object.FindFirstObjectByType<SurvivalRunController>();
             var alpha = Object.FindFirstObjectByType<AlphaRunController>();
             var arena = Object.FindFirstObjectByType<AlphaArena>();
@@ -156,7 +156,7 @@ public static class AlphaChecks
             else if (phase == 8)
             {
                 Require(Object.FindFirstObjectByType<AlphaMainMenu>() != null && Time.timeScale == 1 && !AlphaSession.Active, "Result must return to a working menu.");
-                var reloaded = new AlphaProfileStore(SessionState.GetString(Key + "Path", ""));
+                var reloaded = new AlphaProfileStore(BatchCheckGuard.ProfilePath);
                 Require(reloaded.Data.wins == 1 && reloaded.Data.power == 1 && reloaded.Data.discoveries.Count > 0, "Meta progress and discoveries must survive disk reload.");
                 var menu = Object.FindFirstObjectByType<AlphaMainMenu>(); menu.Show("select");
                 menu.Launch(); phase++; next = EditorApplication.timeSinceStartup + 2;
@@ -212,5 +212,10 @@ public static class AlphaChecks
         finally { camera.targetTexture = previous; RenderTexture.active = active; target.Release(); Object.Destroy(target); Object.Destroy(texture); }
     }
     private static void Require(bool condition, string message) { checks++; if (!condition) throw new InvalidOperationException(message); }
-    private static void Exit(int code) { SessionState.SetBool(Key, false); EditorApplication.update -= Update; EditorApplication.Exit(code); }
+    private static void Exit(int code)
+    {
+        EditorApplication.update -= Update;
+        Application.logMessageReceived -= OnLog;
+        BatchCheckGuard.Finish(Key, code);
+    }
 }

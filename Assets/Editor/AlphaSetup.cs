@@ -9,6 +9,9 @@ public static class AlphaSetup
     [MenuItem("ROTLINE/Alpha/Install Alpha")]
     public static void Install()
     {
+        var scene = RunUIRepair.OpenGameplay();
+        var navigation = RunUIRepair.Unique<NavigationService>(scene);
+        var arena = RunUIRepair.Unique<AlphaArena>(scene);
         SurvivalRunSetup.Install();
         if (!AssetDatabase.IsValidFolder("Assets/Data/Alpha")) AssetDatabase.CreateFolder("Assets/Data", "Alpha");
         if (!AssetDatabase.IsValidFolder("Assets/Resources")) AssetDatabase.CreateFolder("Assets", "Resources");
@@ -29,18 +32,16 @@ public static class AlphaSetup
             catalog.run = AssetDatabase.LoadAssetAtPath<SurvivalRunDefinition>("Assets/Data/Runs/SurvivalRun.asset");
             AssetDatabase.CreateAsset(catalog, catalogPath);
         }
-        var run = Object.FindFirstObjectByType<SurvivalRunController>();
+        var run = RunUIRepair.FindRunRoot(scene).GetComponent<SurvivalRunController>();
         if (run.GetComponent<AlphaRunController>() == null) run.gameObject.AddComponent<AlphaRunController>();
-        var navigation = Object.FindFirstObjectByType<NavigationService>();
-        var arena = navigation.GetComponent<AlphaArena>(); if (arena == null) arena = navigation.gameObject.AddComponent<AlphaArena>();
         var navData = new SerializedObject(navigation); var arenaData = new SerializedObject(arena);
-        arenaData.FindProperty("ground").objectReferenceValue = navData.FindProperty("groundTilemap").objectReferenceValue;
-        arenaData.FindProperty("obstacles").objectReferenceValue = navData.FindProperty("obstacleTilemap").objectReferenceValue;
+        if (arenaData.FindProperty("ground").objectReferenceValue == null) arenaData.FindProperty("ground").objectReferenceValue = navData.FindProperty("groundTilemap").objectReferenceValue;
+        if (arenaData.FindProperty("obstacles").objectReferenceValue == null) arenaData.FindProperty("obstacles").objectReferenceValue = navData.FindProperty("obstacleTilemap").objectReferenceValue;
         arenaData.ApplyModifiedPropertiesWithoutUndo();
         EditorSceneManager.MarkSceneDirty(run.gameObject.scene); EditorSceneManager.SaveScene(run.gameObject.scene);
         AssetDatabase.SaveAssets();
         // Preserve the authored menu hierarchy and all Inspector edits.
-        EditorSceneManager.OpenScene("Assets/Scenes/MainMenu.unity");
+        // Keep other open scenes intact; installation does not change the user's active scene.
         var scenes = EditorBuildSettings.scenes.ToList();
         EditorBuildSettings.scenes = scenes.ToArray();
         PlayerSettings.productName = "Rotline Alpha";

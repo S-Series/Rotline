@@ -11,7 +11,6 @@ public static class SurvivalRunChecks
     private const string Key = "Rotline.SurvivalChecks";
     private static int phase;
     private static double next;
-    private static double deadline;
     private static bool errors;
     private static int checks;
     private static SurvivalRunController firstRun;
@@ -21,18 +20,19 @@ public static class SurvivalRunChecks
     static SurvivalRunChecks()
     {
         if (!SessionState.GetBool(Key, false)) return;
+        BatchCheckGuard.RestoreProfile();
         next = EditorApplication.timeSinceStartup + 4;
-        deadline = EditorApplication.timeSinceStartup + 75;
         Application.logMessageReceived += OnLog;
         EditorApplication.update += Update;
     }
     public static void RunBatch()
     {
-        CombatRegressionChecks.RunBatch();
-        SurvivalRunSetup.Install();
-        SessionState.SetBool(Key, true);
-        EditorSceneManager.OpenScene("Assets/Scenes/Gameplay.unity");
-        EditorApplication.isPlaying = true;
+        BatchCheckGuard.Run(Key, 75, () =>
+        {
+            BatchCheckGuard.Gameplay();
+            CombatRegressionChecks.RunBatch();
+            EditorApplication.isPlaying = true;
+        });
     }
     private static void OnLog(string message, string stack, LogType type)
     {
@@ -43,7 +43,6 @@ public static class SurvivalRunChecks
         if (!EditorApplication.isPlaying || EditorApplication.timeSinceStartup < next) return;
         try
         {
-            Require(EditorApplication.timeSinceStartup < deadline, "Test timed out.");
             var run = Object.FindFirstObjectByType<SurvivalRunController>();
             Require(run != null && run.Health != null, "Run must initialize.");
             if (phase == 0)
@@ -225,7 +224,8 @@ public static class SurvivalRunChecks
     }
     private static void Exit(int code)
     {
-        SessionState.SetBool(Key, false); EditorApplication.update -= Update;
-        EditorApplication.Exit(code);
+        EditorApplication.update -= Update;
+        Application.logMessageReceived -= OnLog;
+        BatchCheckGuard.Finish(Key, code);
     }
 }

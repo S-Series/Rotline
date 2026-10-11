@@ -15,10 +15,13 @@ public static class CombatPlayModeChecks
     private const string RunningKey = "Rotline.CombatPlayModeChecks";
     private static double readyAt;
     private static bool failed;
+    private static WeaponAttackRuntime chargeRuntime;
+    private static Action checkChargeAndPool;
 
     static CombatPlayModeChecks()
     {
         if (!SessionState.GetBool(RunningKey, false)) return;
+        BatchCheckGuard.RestoreProfile();
         readyAt = EditorApplication.timeSinceStartup + 3f;
         Application.logMessageReceived += OnLog;
         EditorApplication.update += Update;
@@ -26,11 +29,11 @@ public static class CombatPlayModeChecks
 
     public static void RunBatch()
     {
-        if (!Application.isBatchMode) throw new InvalidOperationException("Run this entry point in batch mode.");
-        CombatExampleAssets.Create();
-        SessionState.SetBool(RunningKey, true);
-        EditorSceneManager.OpenScene("Assets/Scenes/Gameplay.unity");
-        EditorApplication.isPlaying = true;
+        BatchCheckGuard.Run(RunningKey, 60, () =>
+        {
+            BatchCheckGuard.Gameplay();
+            EditorApplication.isPlaying = true;
+        });
     }
 
     private static void OnLog(string message, string trace, LogType type)
@@ -41,23 +44,36 @@ public static class CombatPlayModeChecks
     private static void Update()
     {
         if (!EditorApplication.isPlaying || EditorApplication.timeSinceStartup < readyAt) return;
-        EditorApplication.update -= Update;
         try
         {
-            CheckScene();
+            if (checkChargeAndPool == null)
+            {
+                CheckScene();
+                return;
+            }
+            // Automatic attacks may still be recovering when the item changes the trigger.
+            // Wait for that preserved recovery instead of requiring an immediate charge.
+            if (Time.time < chargeRuntime.NextAttackTime || Time.deltaTime <= 0f) return;
+            checkChargeAndPool();
             if (failed) throw new InvalidOperationException("Play Mode logged an error; inspect this log.");
             Debug.Log("[CombatPlayMode] Scene, input routing, item restoration, gauge and pool checks passed.");
+            Exit();
         }
         catch (Exception exception)
         {
             failed = true;
             Debug.LogException(exception);
+            Exit();
         }
-        finally
-        {
-            SessionState.SetBool(RunningKey, false);
-            EditorApplication.Exit(failed ? 1 : 0);
-        }
+    }
+
+    private static void Exit()
+    {
+        EditorApplication.update -= Update;
+        Application.logMessageReceived -= OnLog;
+        checkChargeAndPool = null;
+        chargeRuntime = null;
+        BatchCheckGuard.Finish(RunningKey, failed ? 1 : 0);
     }
 
     private static void CheckScene()
@@ -86,6 +102,14 @@ public static class CombatPlayModeChecks
         var runtime = Field<WeaponAttackRuntime>(combat, "weaponRuntime");
         Require(runtime is ModularWeaponAttackRuntime, "Beam item must replace melee runtime.");
         mode.SetMode(PlayerMode.Combat);
+        chargeRuntime = runtime;
+        checkChargeAndPool = () => CheckChargeAndPool(combat, actions, mode, character, stats, item, runtime);
+    }
+
+    private static void CheckChargeAndPool(PlayerCombatController combat, PlayerActionController actions,
+        PlayerModeController mode, PlayerCharacter character, PlayerStats stats, AttackRecipeModifier item,
+        WeaponAttackRuntime runtime)
+    {
         var mouse = InputSystem.AddDevice<Mouse>();
         try
         {

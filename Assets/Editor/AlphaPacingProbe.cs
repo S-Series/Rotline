@@ -25,7 +25,7 @@ public static class AlphaPacingProbe
     static AlphaPacingProbe()
     {
         if (!SessionState.GetBool(Key, false)) return;
-        AlphaSession.UseProfileForChecks(SessionState.GetString(Key + "Profile", ""));
+        BatchCheckGuard.RestoreProfile();
         next = EditorApplication.timeSinceStartup + 3;
         Application.logMessageReceived += OnLog;
         EditorApplication.update += Tick;
@@ -33,11 +33,12 @@ public static class AlphaPacingProbe
 
     public static void RunBatch()
     {
-        string path = Path.GetFullPath("Logs/Pacing/" + Guid.NewGuid().ToString("N") + ".json");
-        SessionState.SetString(Key + "Profile", path);
-        SessionState.SetBool(Key, true);
-        EditorSceneManager.OpenScene("Assets/Scenes/MainMenu.unity");
-        EditorApplication.isPlaying = true;
+        BatchCheckGuard.Run(Key, 120, () =>
+        {
+            BatchCheckGuard.Gameplay();
+            BatchCheckGuard.Menu();
+            EditorApplication.isPlaying = true;
+        });
     }
 
     private static void OnLog(string message, string trace, LogType type)
@@ -104,10 +105,8 @@ public static class AlphaPacingProbe
 
     private static void Exit(int code)
     {
-        SessionState.SetBool(Key, false);
         EditorApplication.update -= Tick;
         Application.logMessageReceived -= OnLog;
-        Time.timeScale = 1f;
-        EditorApplication.Exit(code);
+        BatchCheckGuard.Finish(Key, code);
     }
 }

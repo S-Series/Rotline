@@ -22,7 +22,7 @@ public sealed class AlphaRunController : MonoBehaviour
     public int Room { get; private set; }
     public int Coins { get; private set; }
     public int EarnedShards { get; private set; }
-    public bool SettlementFailed => !settled && !string.IsNullOrEmpty(AlphaSession.Profile.Error);
+    public bool SettlementFailed => !settled && AlphaSession.Profile.IsSettlementPending(runId);
     public bool RoomCleared => cleared;
     public string Objective
     {

@@ -13,23 +13,30 @@ public static class RunUISceneAuthoring
     [MenuItem("ROTLINE/Run/Author Run UI Once")]
     public static void Author()
     {
-        var scene = EditorSceneManager.OpenScene("Assets/Scenes/Gameplay.unity");
-        var run = Object.FindFirstObjectByType<SurvivalRunController>();
-        if (run == null) throw new System.InvalidOperationException("Survival Run is missing.");
-        bool hasHud = run.transform.Find("Run HUD") != null;
-        bool hasPages = run.transform.Find("Alpha System Pages") != null;
-        if (hasHud && hasPages)
+        var scene = RunUIRepair.OpenGameplay();
+        using var activeScene = RunUIRepair.ActivateForAuthoring(scene);
+        var root = RunUIRepair.FindRunRoot(scene);
+        if (root.GetComponentsInChildren<Canvas>(true).Length > 0 || root.GetComponent<RunUIBindings>() != null)
         {
-            Debug.Log("[RunUI] Authored UI already exists; existing hierarchy was left unchanged.");
+            var plan = RunUIRepair.Inspect(root);
+            RunUIRepair.Apply(plan);
+            if (scene.isDirty) EditorSceneManager.SaveScene(scene);
+            Debug.Log("[RunUI] Existing references restored; authored hierarchy, names, layout and events preserved.");
             return;
         }
-        if (hasHud || hasPages) throw new System.InvalidOperationException("Run UI is only partly authored; inspect the scene before continuing.");
+        if (root.GetComponentsInChildren<RectTransform>(true).Length > 0)
+            throw new System.InvalidOperationException("Unidentified authored UI exists. Restore its references; no replacement was generated.");
+        var run = root.GetComponent<SurvivalRunController>();
+        if (run == null || run.GetComponent<SurvivalRunHUD>() == null || run.GetComponent<AlphaRunController>() == null)
+            throw new System.InvalidOperationException("Run components are missing. Restore components before authoring new UI.");
+        RunUIRepair.MainCamera(scene);
         font = AssetDatabase.LoadAssetAtPath<Font>("Assets/Resources/NanumGothic-Regular.ttf");
         barSprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
         if (font == null || barSprite == null) throw new System.InvalidOperationException("Run UI font or bar sprite is missing.");
 
         AuthorHud(run);
         AuthorSystemPages(run);
+        RunUIRepair.Apply(RunUIRepair.Inspect(root));
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
         Debug.Log("[RunUI] Saved Run HUD and Alpha System Pages in Gameplay.unity.");
@@ -146,7 +153,7 @@ public static class RunUISceneAuthoring
         obj.transform.SetParent(parent, false);
         var canvas = obj.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceCamera;
-        canvas.worldCamera = Camera.main;
+        canvas.worldCamera = RunUIRepair.MainCamera(parent.gameObject.scene);
         canvas.planeDistance = distance;
         canvas.sortingLayerName = "Front UI";
         canvas.sortingOrder = order;

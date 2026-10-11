@@ -26,12 +26,30 @@ public sealed class AlphaProfileStore
 {
     private readonly string path;
     private readonly HashSet<string> pendingDiscoveries = new();
+    private readonly Dictionary<string, Settlement> pendingSettlements = new();
+    private bool preserveBackupOnNextSave;
+    private readonly struct Settlement
+    {
+        public readonly bool Won;
+        public readonly int Kills;
+        public readonly float Seconds;
+        public int Reward => (Kills > 0 ? Mathf.Max(1, Kills / 5) : 0) + (Won ? 25 : 0);
+        public Settlement(bool won, int kills, float seconds) { Won = won; Kills = kills; Seconds = seconds; }
+    }
     public AlphaProfile Data { get; private set; }
     public string Error { get; private set; }
+    public int PendingSettlementCount => pendingSettlements.Count;
+    public bool IsSettlementPending(string runId) => runId != null && pendingSettlements.ContainsKey(runId);
     public AlphaProfileStore(string path)
     {
         this.path = path;
-        Data = Read(path) ?? Read(path + ".bak") ?? new AlphaProfile();
+        Data = Read(path);
+        if (Data == null)
+        {
+            Data = Read(path + ".bak");
+            preserveBackupOnNextSave = Data != null;
+        }
+        Data ??= new AlphaProfile();
         Data.discoveries ??= new List<string>(); Data.settledRuns ??= new List<string>();
         Data.shards = Mathf.Max(0, Data.shards);
         Data.vitality = Mathf.Clamp(Data.vitality, 0, 5); Data.power = Mathf.Clamp(Data.power, 0, 5); Data.magnet = Mathf.Clamp(Data.magnet, 0, 5);
@@ -52,22 +70,36 @@ public sealed class AlphaProfileStore
     }
     public bool Save()
     {
-        var appended = new List<string>();
+        // Pending results belong to this store, not the scene that earned them.
+        // Apply them only inside the save transaction and retain them on failure.
+        string before = JsonUtility.ToJson(Data);
+        foreach (var entry in pendingSettlements)
+        {
+            if (Data.settledRuns.Contains(entry.Key)) continue;
+            var result = entry.Value;
+            Data.shards += result.Reward; Data.runs++; if (result.Won) Data.wins++;
+            Data.bestKills = Mathf.Max(Data.bestKills, result.Kills);
+            Data.bestSeconds = Mathf.Max(Data.bestSeconds, result.Seconds);
+            Data.settledRuns.Add(entry.Key);
+        }
         foreach (string id in pendingDiscoveries)
-            if (!Data.discoveries.Contains(id)) { Data.discoveries.Add(id); appended.Add(id); }
+            if (!Data.discoveries.Contains(id)) Data.discoveries.Add(id);
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path));
             string temp = path + ".tmp";
             File.WriteAllText(temp, JsonUtility.ToJson(Data, true));
-            if (File.Exists(path)) File.Replace(temp, path, path + ".bak");
+            // A recovered profile must not rotate its corrupt primary into the good backup.
+            if (File.Exists(path)) File.Replace(temp, path, preserveBackupOnNextSave ? null : path + ".bak");
             else File.Move(temp, path);
+            preserveBackupOnNextSave = false;
+            pendingSettlements.Clear();
             pendingDiscoveries.Clear();
             Error = null; return true;
         }
         catch (Exception ex)
         {
-            foreach (string id in appended) Data.discoveries.Remove(id);
+            Data = JsonUtility.FromJson<AlphaProfile>(before);
             Error = "저장 실패: " + ex.Message;
             return false;
         }
@@ -86,15 +118,12 @@ public sealed class AlphaProfileStore
     public int Settle(string runId, bool won, int kills, float seconds)
     {
         if (string.IsNullOrEmpty(runId) || Data.settledRuns.Contains(runId)) return 0;
-        string before = JsonUtility.ToJson(Data);
-        int reward = (kills > 0 ? Mathf.Max(1, kills / 5) : 0) + (won ? 25 : 0);
-        Data.shards += reward; Data.runs++; if (won) Data.wins++;
-        Data.bestKills = Mathf.Max(Data.bestKills, kills); Data.bestSeconds = Mathf.Max(Data.bestSeconds, seconds);
-        Data.settledRuns.Add(runId);
-        if (Save()) return reward;
-        Data = JsonUtility.FromJson<AlphaProfile>(before);
-        return -1;
+        // First terminal result wins even if a caller retries with different arguments.
+        if (!pendingSettlements.ContainsKey(runId)) pendingSettlements.Add(runId, new Settlement(won, kills, seconds));
+        int reward = pendingSettlements[runId].Reward;
+        return Save() ? reward : -1;
     }
+    public bool RetryPendingSettlements() => pendingSettlements.Count == 0 || Save();
     public bool Discover(string id)
     {
         if (string.IsNullOrEmpty(id) || Data.discoveries.Contains(id)) return false;

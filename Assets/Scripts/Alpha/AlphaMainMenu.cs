@@ -30,12 +30,22 @@ public sealed class AlphaMainMenu : MonoBehaviour
     [SerializeField] private Text fullscreenLabel;
     private int selected;
     private bool expedition;
+    private float retryAt;
 
     private void Start()
     {
         AlphaSession.End(); AlphaSession.ApplySettings();
+        AlphaSession.Profile.RetryPendingSettlements();
+        retryAt = Time.unscaledTime + 2f;
         if (AppRoot.Instance != null) AppRoot.Instance.Input.SetGameplayEnabled(false);
         Show("main");
+    }
+    private void Update()
+    {
+        if (AlphaSession.Profile.PendingSettlementCount == 0 || Time.unscaledTime < retryAt) return;
+        retryAt = Time.unscaledTime + 2f;
+        AlphaSession.Profile.RetryPendingSettlements();
+        Refresh();
     }
     public void Show(string next)
     {
@@ -49,7 +59,9 @@ public sealed class AlphaMainMenu : MonoBehaviour
         var profile = AlphaSession.Profile;
         profileLabel.text = $"정수 {profile.Data.shards}    원정 {profile.Data.runs}회    승리 {profile.Data.wins}회";
         errorLabel.text = profile.Error ?? "";
-        errorLabel.gameObject.SetActive(!string.IsNullOrEmpty(profile.Error));
+        if (profile.PendingSettlementCount > 0)
+            errorLabel.text = $"보상 저장 실패 · 저장 대기 중인 결과 {profile.PendingSettlementCount}건\n메뉴에서 자동 재시도합니다. 저장 경로를 확인해 주세요.\n종료하면 대기 중인 보상이 사라집니다.";
+        errorLabel.gameObject.SetActive(!string.IsNullOrEmpty(errorLabel.text));
         var catalog = AlphaSession.Catalog;
         for (int i = 0; i < characterLabels.Length; i++)
         {

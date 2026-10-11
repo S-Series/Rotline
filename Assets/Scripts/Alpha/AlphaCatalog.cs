@@ -24,6 +24,7 @@ public static class AlphaSession
     public static CharacterDefinition Character => Active ? Catalog.characters[Mathf.Clamp(CharacterIndex, 0, Catalog.characters.Length - 1)] : null;
     public static void Begin(int character, bool expedition, int seed = 0)
     {
+        Profile.RetryPendingSettlements();
         Active = true; CharacterIndex = character; Expedition = expedition;
         Seed = seed == 0 ? System.Environment.TickCount : seed;
         RunId = System.Guid.NewGuid().ToString("N");

@@ -12,7 +12,7 @@ using Object=UnityEngine.Object;
 public static class PurificationChecks
 {
     const string Key="Rotline.PurificationChecks";
-    static double next,deadline;
+    static double next;
     static int phase;
     static int shots, stoppedShots;
     static WeaponAttackRuntime weapon;
@@ -22,21 +22,26 @@ public static class PurificationChecks
     static PurificationChecks()
     {
         if(!SessionState.GetBool(Key,false))return;
-        next=EditorApplication.timeSinceStartup+3;deadline=next+40;
-        Application.logMessageReceived+=(m,t,k)=>{if(!t.Contains("UnityEditor.Search.SearchDatabase") && (k==LogType.Error || k==LogType.Exception || k==LogType.Assert))errors=true;};
+        BatchCheckGuard.RestoreProfile();
+        next=EditorApplication.timeSinceStartup+3;
+        Application.logMessageReceived += OnLog;
         EditorApplication.update+=Tick;
     }
     public static void RunBatch()
     {
-        EditorSceneManager.OpenScene("Assets/Scenes/Gameplay.unity");
-        Require(Object.FindFirstObjectByType<PlayerPurificationController>()!=null,"Player purification must be placed in the scene.");
-        Require(Object.FindFirstObjectByType<PurificationView>()!=null,"Purification view must be placed in the scene.");
-        Require(Object.FindFirstObjectByType<AlphaCorruptionHazard>()!=null,"Hazard must be placed in the scene.");
-        SessionState.SetBool(Key,true);EditorApplication.isPlaying=true;
+        BatchCheckGuard.Run(Key, 45, () =>
+        {
+            BatchCheckGuard.Gameplay();
+            EditorApplication.isPlaying = true;
+        });
+    }
+    static void OnLog(string message, string trace, LogType type)
+    {
+        if (!trace.Contains("UnityEditor.Search.SearchDatabase") &&
+            (type == LogType.Error || type == LogType.Exception || type == LogType.Assert)) errors = true;
     }
     static void Tick()
     {
-        if(EditorApplication.timeSinceStartup>deadline){Exit(1);return;}
         if(!EditorApplication.isPlaying || EditorApplication.timeSinceStartup<next)return;
         try
         {
@@ -155,5 +160,10 @@ public static class PurificationChecks
         finally{camera.targetTexture=old;RenderTexture.active=active;targetTexture.Release();Object.Destroy(targetTexture);Object.Destroy(texture);}
     }
     static void Require(bool condition,string message){if(!condition)throw new InvalidOperationException(message);}
-    static void Exit(int code){SessionState.SetBool(Key,false);EditorApplication.update-=Tick;EditorApplication.Exit(code);}
+    static void Exit(int code)
+    {
+        EditorApplication.update -= Tick;
+        Application.logMessageReceived -= OnLog;
+        BatchCheckGuard.Finish(Key, code);
+    }
 }

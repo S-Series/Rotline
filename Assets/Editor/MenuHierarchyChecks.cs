@@ -21,29 +21,32 @@ public static class MenuHierarchyChecks
     static MenuHierarchyChecks()
     {
         if (!SessionState.GetBool(Key, false)) return;
-        AlphaSession.UseProfileForChecks(SessionState.GetString(Key + "Profile", ""));
+        BatchCheckGuard.RestoreProfile();
         next = EditorApplication.timeSinceStartup + 3;
-        Application.logMessageReceived += (m, t, k) =>
-        {
-            // Unity's search index can fail in a fresh batch project, independently of game code.
-            if (t.Contains("UnityEditor.Search.SearchDatabase")) return;
-            if (k == LogType.Error || k == LogType.Exception || k == LogType.Assert) errors = true;
-        };
+        Application.logMessageReceived += OnLog;
         EditorApplication.update += Tick;
     }
     public static void RunBatch()
     {
-        var scene = EditorSceneManager.OpenScene("Assets/Scenes/Gameplay.unity");
+        BatchCheckGuard.Run(Key, 60, Prepare);
+    }
+    static void OnLog(string message, string trace, LogType type)
+    {
+        // Unity's search index can fail independently of game code in a fresh batch project.
+        if (trace.Contains("UnityEditor.Search.SearchDatabase")) return;
+        if (type == LogType.Error || type == LogType.Exception || type == LogType.Assert) errors = true;
+    }
+    static void Prepare()
+    {
+        BatchCheckGuard.Gameplay();
         SessionState.SetString(Key + "Field", Field());
         SessionState.SetVector3(Key + "Spawn", Object.FindFirstObjectByType<PlayerCharacter>().transform.position);
-        EditorSceneManager.OpenScene("Assets/Scenes/MainMenu.unity");
+        BatchCheckGuard.Menu();
         var menu = Object.FindFirstObjectByType<AlphaMainMenu>();
         Require(menu.GetComponentsInChildren<Button>(true).Length == 18, "All eighteen menu buttons must be authored in the scene.");
         foreach(var button in menu.GetComponentsInChildren<Button>(true)) Require(button.onClick.GetPersistentEventCount() == 1, "Each button needs a saved Inspector event: " + button.name);
         Require(menu.GetComponent<AlphaSystemView>() == null, "Menu must use its own authored hierarchy.");
         foreach(var text in menu.GetComponentsInChildren<Text>(true)) Require(text.font != null, "Text needs a saved font: " + text.name);
-        string path = Path.GetFullPath("Logs/MenuChecks/" + Guid.NewGuid().ToString("N") + ".json");
-        SessionState.SetString(Key + "Profile", path); SessionState.SetBool(Key, true);
         EditorApplication.isPlaying = true;
     }
     static void Tick()
@@ -110,5 +113,11 @@ public static class MenuHierarchyChecks
         finally{camera.targetTexture=previous;RenderTexture.active=active;target.Release();Object.Destroy(target);Object.Destroy(texture);}
     }
     static void Require(bool value,string message){if(!value)throw new InvalidOperationException(message);}
-    static void Exit(int code){SessionState.SetBool(Key,false);EditorApplication.update-=Tick;EditorApplication.Exit(code);}
+    static void Exit(int code)
+    {
+        EditorApplication.update -= Tick;
+        Application.logMessageReceived -= OnLog;
+        SessionState.EraseString(Key + "Field");
+        BatchCheckGuard.Finish(Key, code);
+    }
 }

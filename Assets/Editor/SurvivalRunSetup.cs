@@ -7,6 +7,18 @@ public static class SurvivalRunSetup
     [MenuItem("ROTLINE/Run/Install Survival Systems")]
     public static void Install()
     {
+        var scene = RunUIRepair.OpenGameplay();
+        var root = RunUIRepair.FindRunRoot(scene);
+        var repair = RunUIRepair.Inspect(root);
+        var player = RunUIRepair.Unique<PlayerCharacter>(scene);
+        var spawner = RunUIRepair.Unique<SpawnDirector>(scene);
+        var currentRun = root.GetComponent<SurvivalRunController>();
+        if (currentRun != null)
+        {
+            var existing = new SerializedObject(currentRun);
+            RunUIRepair.RequireObjectInScene(existing.FindProperty("player").objectReferenceValue, scene, "Run.player");
+            RunUIRepair.RequireObjectInScene(existing.FindProperty("spawner").objectReferenceValue, scene, "Run.spawner");
+        }
         TemporaryItemAssets.Create(); CombatExampleAssets.Create();
         if (!AssetDatabase.IsValidFolder("Assets/Data/Runs")) AssetDatabase.CreateFolder("Assets/Data", "Runs");
         const string path = "Assets/Data/Runs/SurvivalRun.asset";
@@ -25,23 +37,17 @@ public static class SurvivalRunSetup
             AssetDatabase.CreateAsset(definition, path);
         }
         AssetDatabase.SaveAssets();
-        var scene = EditorSceneManager.OpenScene("Assets/Scenes/Gameplay.unity");
         definition = AssetDatabase.LoadAssetAtPath<SurvivalRunDefinition>(path);
-        var player = Object.FindFirstObjectByType<PlayerCharacter>();
-        var spawner = Object.FindFirstObjectByType<SpawnDirector>();
-        if (player == null || spawner == null) throw new System.InvalidOperationException("Gameplay player or spawner missing.");
         Ensure<PlayerHealth>(player.gameObject); Ensure<PlayerExperience>(player.gameObject); Ensure<PlayerItemInventory>(player.gameObject);
-        var run = Object.FindFirstObjectByType<SurvivalRunController>();
-        if (run == null) run = new GameObject("Survival Run").AddComponent<SurvivalRunController>();
-        Ensure<SurvivalRunHUD>(run.gameObject);
+        var run = RunUIRepair.Apply(repair);
         var hudSettings = new SerializedObject(run.GetComponent<SurvivalRunHUD>());
-        foreach (var canvas in Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None))
-            if (canvas.name == "UI Field") hudSettings.FindProperty("legacyHUD").objectReferenceValue = canvas;
+        foreach (var canvas in RunUIRepair.Components<Canvas>(scene))
+            if (canvas.name == "UI Field" && hudSettings.FindProperty("legacyHUD").objectReferenceValue == null) hudSettings.FindProperty("legacyHUD").objectReferenceValue = canvas;
         hudSettings.ApplyModifiedPropertiesWithoutUndo();
         var serialized = new SerializedObject(run);
-        serialized.FindProperty("definition").objectReferenceValue = definition;
-        serialized.FindProperty("player").objectReferenceValue = player;
-        serialized.FindProperty("spawner").objectReferenceValue = spawner;
+        if (serialized.FindProperty("definition").objectReferenceValue == null) serialized.FindProperty("definition").objectReferenceValue = definition;
+        if (serialized.FindProperty("player").objectReferenceValue == null) serialized.FindProperty("player").objectReferenceValue = player;
+        if (serialized.FindProperty("spawner").objectReferenceValue == null) serialized.FindProperty("spawner").objectReferenceValue = spawner;
         serialized.ApplyModifiedPropertiesWithoutUndo();
         EditorSceneManager.MarkSceneDirty(scene); EditorSceneManager.SaveScene(scene); AssetDatabase.SaveAssets();
         Debug.Log("[SurvivalSetup] Run definition, progression, health and HUD installed.");
